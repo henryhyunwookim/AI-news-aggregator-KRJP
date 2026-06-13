@@ -1,0 +1,147 @@
+import json
+import time
+import google.generativeai as genai
+from src.config import GEMINI_API_KEY
+
+class NewsFilter:
+    def __init__(self, api_key=None):
+        self.api_key = api_key or GEMINI_API_KEY
+        if not self.api_key:
+            raise ValueError("Gemini API key is required. Set GEMINI_API_KEY in .env or pass it to NewsFilter.")
+        genai.configure(api_key=self.api_key)
+        # Using gemini-2.5-flash-lite as used in the user's other workspace, or fallback
+        self.model = genai.GenerativeModel('gemini-2.5-flash-lite')
+
+    def filter_and_translate_batch(self, articles):
+        """
+        Filters articles for AIFOD relevance, translates them to English,
+        deduplicates coverages, and selects the top 10.
+        Articles is a list of dicts.
+        """
+        if not articles:
+            return []
+
+        # Prepare articles list for the prompt
+        simplified_articles = []
+        for idx, art in enumerate(articles):
+            simplified_articles.append({
+                "index": idx,
+                "title": art["title"],
+                "source": art["source"],
+                "country": art["country"],
+                "query": art["query_matched"],
+                "snippet": art["description"][:300] if art.get("description") else ""
+            })
+
+        prompt = f"""You are an expert news analyst for the **AI for Developing Countries Forum (AIFOD)**.
+Your task is to analyze the following list of AI-related articles from South Korea and Japan, filter them for relevance to AIFOD's mission, deduplicate similar stories, and select the **top 10 most impactful articles** of the day, translating and summarizing them in English.
+
+### AIFOD Mission & Relevant Topics:
+1. **Bridging the AI Gap**: Actions, policies, or projects addressing the AI accessibility/digital divide between developed and developing nations (the Global South).
+2. **AI Governance & Social Equity**: Regulatory, ethical, or policy frameworks that emphasize inclusivity, human-centric AI, and equity in emerging economies.
+3. **Capacity Building & Education**: AI education, skills training, or human resource initiatives in Korea/Japan, particularly those with international outreach or applicability to emerging regions.
+4. **International Cooperation & Partnerships**: Official Development Assistance (ODA), cooperation programs (e.g., via KOICA, JICA), university/research exchanges, or joint public/private ventures between Korea/Japan and developing nations regarding AI.
+5. **AI for Social Good**: AI applications in healthcare, education, agriculture, disaster mitigation, or climate change that could be applied to or support developing countries.
+
+### Articles to Analyze:
+{json.dumps(simplified_articles, ensure_ascii=False, indent=2)}
+
+### Response Format:
+You MUST respond with ONLY a valid JSON object in the exact format shown below (no other text, markdown blocks, or commentary).
+{{
+  "relevant_articles": [
+    {{
+      "index": 0,
+      "relevance_explanation": "A one-sentence explanation of why this article is relevant to AIFOD.",
+      "english_title": "Clean, natural English translation of the article's title",
+      "english_summary": "A high-quality 2-3 sentence summary in English highlighting the core information, especially details about international cooperation, policy impacts, or technologies used.",
+      "aifod_insight": "An analytical paragraph explaining the significance/implication of this news specifically for AIFOD's mission, capacity building, or Global South advocacy.",
+      "aifod_question": "A critical, analytical question that AIFOD practitioners should ask policymakers or stakeholders regarding this development.",
+      "aifod_suggested_answer": "A suggested stance, strategy, or response representing AIFOD's perspective on how to address the above question."
+    }}
+  ]
+}}
+
+### Rules:
+1. **Deduplicate Events**: If multiple articles cover the same event, press release, or announcement (even if from different publishers or countries), select ONLY the single most comprehensive article and represent it once.
+2. **Limit Output**: You MUST return a maximum of 10 articles in the `relevant_articles` array. Select the **top 10 most significant and impactful** articles for AIFOD's mission.
+3. **Be Selective**: Only include articles that strictly align with the AIFOD mission topics. If fewer than 10 relevant unique articles exist, only return those.
+4. **Translate & Summarize**: All titles, summaries, insights, questions, and answers MUST be in English.
+5. Output ONLY the raw JSON object. Do not include markdown code block syntax (like ```json).
+"""
+
+        max_retries = 5
+        retry_delay = 3
+        
+        for attempt in range(max_retries):
+            try:
+                response = self.model.generate_content(prompt)
+                text = response.text.strip()
+                
+                # Attempt to extract JSON
+                extracted_json = text
+                if '```json' in text:
+                    extracted_json = text.split('```json')[1].split('```')[0].strip()
+                elif '```' in text:
+                    extracted_json = text.split('```')[1].split('```')[0].strip()
+                
+                # Try parsing JSON
+                try:
+                    result = json.loads(extracted_json)
+                except json.JSONDecodeError:
+                    # Fallback using regex to find first '{' and last '}'
+                    import re
+                    json_match = re.search(r'(\{[\s\S]*\})', text)
+                    if json_match:
+                        result = json.loads(json_match.group(1))
+                    else:
+                        raise ValueError("No JSON object found in response.")
+
+                # Match index back to original articles
+                filtered_articles = []
+                for item in result.get("relevant_articles", []):
+                    idx = item.get("index")
+                    if idx is not None and 0 <= idx < len(articles):
+                        orig = articles[idx]
+                        filtered_articles.append({
+                            "original_title": orig["title"],
+                            "english_title": item["english_title"],
+                            "english_summary": item["english_summary"],
+                            "relevance_explanation": item["relevance_explanation"],
+                            "aifod_insight": item.get("aifod_insight", ""),
+                            "aifod_question": item.get("aifod_question", ""),
+                            "aifod_suggested_answer": item.get("aifod_suggested_answer", ""),
+                            "link": orig["link"],
+                            "source": orig["source"],
+                            "country": orig["country"],
+                            "published": orig["published"]
+                        })
+                return filtered_articles
+
+            except Exception as e:
+                error_msg = str(e)
+                print(f"Filtering attempt {attempt+1} failed: {error_msg}")
+                if attempt < max_retries - 1:
+                    if "429" in error_msg or "Resource exhausted" in error_msg:
+                        print("Rate limit reached. Waiting 60 seconds before retrying...")
+                        time.sleep(60)
+                    else:
+                        time.sleep(retry_delay * (attempt + 1))
+                else:
+                    print(f"Failed to process batch after {max_retries} attempts.")
+                    return []
+
+    def filter_articles(self, articles):
+        """
+        Process the list of articles, globally deduplicating and selecting the top 10.
+        """
+        if not articles:
+            return []
+            
+        # To avoid exceeding tokens or output limits, cap at first 100 articles
+        if len(articles) > 100:
+            print(f"Large harvest: capping evaluation at 100 articles (out of {len(articles)}).")
+            articles = articles[:100]
+            
+        print(f"Sending {len(articles)} unique articles to Gemini for deduplication, relevance filtering, and ranking...")
+        return self.filter_and_translate_batch(articles)

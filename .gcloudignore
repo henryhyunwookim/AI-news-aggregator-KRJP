@@ -1,0 +1,18 @@
+# Default ignored files
+.git/
+.gitignore
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Explicitly include these files (override defaults if needed)
+!credentials.json
+!.env
+!token.json
