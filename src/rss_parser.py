@@ -96,7 +96,10 @@ def parse_and_filter_articles(hours_back=24):
                     'description': entry.get('summary', '')
                 })
                 
-    print(f"Fetched {len(unique_articles)} total unique articles from Korea and Japan.")
+    # Sort all unique articles by publication date, newest first
+    unique_articles.sort(key=lambda x: x['published'], reverse=True)
+    
+    print(f"Fetched {len(unique_articles)} total unique articles from Korea and Japan (sorted by date).")
     return unique_articles
 
 if __name__ == "__main__":

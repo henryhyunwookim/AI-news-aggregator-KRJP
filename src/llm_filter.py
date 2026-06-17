@@ -65,7 +65,7 @@ You MUST respond with ONLY a valid JSON object in the exact format shown below (
 ### Rules:
 1. **Deduplicate Events**: If multiple articles cover the same event, press release, or announcement (even if from different publishers or countries), select ONLY the single most comprehensive article and represent it once.
 2. **Limit Output**: You MUST return a maximum of 10 articles in the `relevant_articles` array. Select the **top 10 most significant and impactful** articles for AIFOD's mission.
-3. **Be Selective**: Only include articles that strictly align with the AIFOD mission topics. If fewer than 10 relevant unique articles exist, only return those.
+3. **Relevance Threshold**: Prioritize articles that strictly align with core AIFOD mission topics (international cooperation, ODA, digital divide). However, if fewer than 5 highly relevant articles exist, you should include articles that are moderately relevant to AIFOD's broader themes (such as general AI policy, ethical guidelines, AI education, or AI applications for social good in Korea/Japan that could serve as models or reference points for developing nations). Avoid returning 0 articles unless there is absolutely no AI policy, education, or social good news in the batch.
 4. **Translate & Summarize**: All titles, summaries, insights, questions, and answers MUST be in English.
 5. Output ONLY the raw JSON object. Do not include markdown code block syntax (like ```json).
 """
