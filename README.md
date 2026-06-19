@@ -6,7 +6,7 @@ Deployed on Google Cloud Run and scheduled via Google Cloud Scheduler.
 
 ## Features
 
-- **Multilingual Retrieval**: Automatically queries Google News RSS feeds for South Korea (in Korean) and Japan (in Japanese) using AIFOD-targeted keywords.
+- **Resilient Multilingual Retrieval**: Automatically queries Google News RSS feeds for South Korea (in Korean) and Japan (in Japanese) using AIFOD-targeted keywords. Implements rotating browser User-Agents and multiple public CORS proxy fallbacks (`corsproxy.io` and `allorigins.win`) to bypass Google News `503 Service Unavailable` IP blocks on Google Cloud datacenter egress ranges.
 - **AIFOD-Focused Filtering**: Uses the Gemini API (`gemini-2.5-flash-lite`) to filter articles strictly relevant to AIFOD's mission (bridging the digital divide, AI policy in emerging markets, capacity building, and international cooperation).
 - **AIFOD Value-Adds**: For each relevant article, Gemini generates:
   - A 2-3 sentence English summary.
@@ -15,6 +15,16 @@ Deployed on Google Cloud Run and scheduled via Google Cloud Scheduler.
   - A suggested stance/response representing AIFOD's perspective.
 - **Premium Email Digests**: Compiles a responsive, beautifully styled HTML email with country-specific badges, relevance markers, and clean layouts sent directly via the Gmail API.
 - **GCP Native**: Fully containerized and deployed on Google Cloud Run, triggered securely with OIDC authentication by Cloud Scheduler.
+
+---
+
+## Resilience & GCP Egress Handling
+
+Google News blocks automated requests coming from datacenter IP addresses (including Google Cloud Run) by returning `503 Service Unavailable`. To mitigate this, this service implements a multi-tier fallback mechanism in [rss_parser.py](file:///d:/OneDrive/GitHub/AI-news-aggregator-KRJP/src/rss_parser.py):
+1. **Direct Fetching**: Attempts to retrieve the feed directly using a rotating set of realistic desktop browser User-Agents.
+2. **CORS Proxy Fallback (Primary)**: If direct fetching is blocked, the request is routed through `corsproxy.io` which maps to different consumer IPs.
+3. **CORS Proxy Fallback (Secondary)**: If the primary proxy fails, it falls back to `api.allorigins.win`.
+This ensures that the aggregator remains robust and never fails silently or returns 0 articles during Cloud Run cron executions.
 
 ---
 

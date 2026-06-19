@@ -1,4 +1,6 @@
 import urllib.parse
+import urllib.request
+import urllib.error
 import feedparser
 import calendar
 import time
@@ -8,6 +10,7 @@ from src.config import KOREAN_QUERIES, JAPANESE_QUERIES
 def get_feed_articles(query, country_code):
     """
     Fetches articles from Google News RSS feed for a specific query and country.
+    Uses rotating User-Agents and falls back to CORS proxies if direct requests are blocked (e.g. by Google Cloud IP restrictions).
     country_code: 'KR' (Korea) or 'JP' (Japan)
     """
     encoded_query = urllib.parse.quote(query)
@@ -21,12 +24,77 @@ def get_feed_articles(query, country_code):
         
     url = f"https://news.google.com/rss/search?q={encoded_query}&hl={hl}&gl={gl}&ceid={gl}:{hl}"
     
+    user_agents = [
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0'
+    ]
+    
+    # 1. Try direct fetching with rotating browser User-Agents
+    for attempt, ua in enumerate(user_agents):
+        req = urllib.request.Request(
+            url,
+            headers={
+                'User-Agent': ua,
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5'
+            }
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=10) as response:
+                xml_data = response.read()
+                feed = feedparser.parse(xml_data)
+                # Check for standard Google block responses parsed as HTML
+                if feed.entries:
+                    return feed.entries
+                # If we parsed it but got 0 entries, it might be due to 503 block page parsed as empty feed
+                if getattr(feed, 'status', 200) in (403, 429, 503) or feed.bozo:
+                    status_code = getattr(feed, 'status', 'unknown')
+                    print(f"Direct fetch attempt {attempt+1} got blocked (status: {status_code}) for query '{query}'.")
+                else:
+                    # Valid response but actually no search results matching the query in the time window
+                    return []
+        except urllib.error.HTTPError as e:
+            print(f"Direct fetch attempt {attempt+1} failed with HTTPError {e.code} for query '{query}' in {country_code}.")
+        except Exception as e:
+            print(f"Direct fetch attempt {attempt+1} failed with error '{e}' for query '{query}' in {country_code}.")
+            
+    # 2. Try via corsproxy.io proxy fallback
+    print(f"Attempting fallback via corsproxy.io for query '{query}'...")
     try:
-        feed = feedparser.parse(url)
-        return feed.entries
+        proxy_url = f"https://corsproxy.io/?{urllib.parse.quote(url)}"
+        req = urllib.request.Request(
+            proxy_url,
+            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        )
+        with urllib.request.urlopen(req, timeout=12) as response:
+            xml_data = response.read()
+            feed = feedparser.parse(xml_data)
+            if feed.entries:
+                print(f"Successfully fetched query '{query}' via corsproxy.io!")
+                return feed.entries
     except Exception as e:
-        print(f"Error fetching feed for query '{query}' in {country_code}: {e}")
-        return []
+        print(f"Fallback via corsproxy.io failed: {e}")
+        
+    # 3. Try via allorigins.win proxy fallback
+    print(f"Attempting fallback via allorigins.win for query '{query}'...")
+    try:
+        proxy_url = f"https://api.allorigins.win/raw?url={urllib.parse.quote(url)}"
+        req = urllib.request.Request(
+            proxy_url,
+            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        )
+        with urllib.request.urlopen(req, timeout=12) as response:
+            xml_data = response.read()
+            feed = feedparser.parse(xml_data)
+            if feed.entries:
+                print(f"Successfully fetched query '{query}' via allorigins.win!")
+                return feed.entries
+    except Exception as e:
+        print(f"Fallback via allorigins.win failed: {e}")
+        
+    print(f"Error: All attempts failed to fetch RSS feed for query '{query}' in {country_code}.")
+    return []
 
 def parse_and_filter_articles(hours_back=24):
     """
