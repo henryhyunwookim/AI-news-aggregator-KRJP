@@ -1,14 +1,14 @@
 # AIFOD Daily AI News Aggregator (Korea & Japan)
 
-A Python-based serverless service that fetches AI-related news from South Korea and Japan, filters them for relevance to AIFOD's mission, translates and summarizes them in English (including adding AIFOD policy insights and discussion Q&As), and emails a daily digest to the practitioner every day at midnight (Asia/Tokyo time).
+A Python-based serverless service that fetches AI-related news from South Korea and Japan, filters them for relevance to AIFOD's mission, aggressively deduplicates similar coverages, translates and summarizes the top 5 most impactful stories in English (including adding AIFOD policy insights and discussion Q&As), and emails a daily digest to the practitioner every day at midnight (Asia/Tokyo time).
 
 Deployed on Google Cloud Run and scheduled via Google Cloud Scheduler.
 
 ## Features
 
 - **Resilient Multilingual Retrieval**: Automatically queries Google News RSS feeds for South Korea (in Korean) and Japan (in Japanese) using AIFOD-targeted keywords. Implements rotating browser User-Agents and multiple public CORS proxy fallbacks (`corsproxy.io` and `allorigins.win`) to bypass Google News `503 Service Unavailable` IP blocks on Google Cloud datacenter egress ranges.
-- **AIFOD-Focused Filtering**: Uses the Gemini API (`gemini-2.5-flash-lite`) to filter articles strictly relevant to AIFOD's mission (bridging the digital divide, AI policy in emerging markets, capacity building, and international cooperation).
-- **AIFOD Value-Adds**: For each relevant article, Gemini generates:
+- **AIFOD-Focused Filtering & Deduplication**: Uses the Gemini API (`gemini-2.5-flash-lite`) to filter articles strictly relevant to AIFOD's mission (bridging the digital divide, AI policy in emerging markets, capacity building, and international cooperation). It aggressively deduplicates similar or overlapping stories across both countries and sources, selecting the top 5 most significant developments of the day.
+- **AIFOD Value-Adds**: For each of the top 5 articles, Gemini generates:
   - A 2-3 sentence English summary.
   - An analytical paragraph explaining the significance/implication of the news specifically for AIFOD.
   - A critical question that AIFOD practitioners should ask regarding the development.

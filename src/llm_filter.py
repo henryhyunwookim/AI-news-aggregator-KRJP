@@ -15,7 +15,7 @@ class NewsFilter:
     def filter_and_translate_batch(self, articles):
         """
         Filters articles for AIFOD relevance, translates them to English,
-        deduplicates coverages, and selects the top 10.
+        deduplicates similar stories, and selects the top 5.
         Articles is a list of dicts.
         """
         if not articles:
@@ -34,7 +34,7 @@ class NewsFilter:
             })
 
         prompt = f"""You are an expert news analyst for the **AI for Developing Countries Forum (AIFOD)**.
-Your task is to analyze the following list of AI-related articles from South Korea and Japan, filter them for relevance to AIFOD's mission, deduplicate similar stories, and select the **top 10 most impactful articles** of the day, translating and summarizing them in English.
+Your task is to analyze the following list of AI-related articles from South Korea and Japan, filter them for relevance to AIFOD's mission, aggressively deduplicate similar stories, and select the **top 5 most impactful articles** of the day, translating and summarizing them in English.
 
 ### AIFOD Mission & Relevant Topics:
 1. **Bridging the AI Gap**: Actions, policies, or projects addressing the AI accessibility/digital divide between developed and developing nations (the Global South).
@@ -63,9 +63,14 @@ You MUST respond with ONLY a valid JSON object in the exact format shown below (
 }}
 
 ### Rules:
-1. **Deduplicate Events**: If multiple articles cover the same event, press release, or announcement (even if from different publishers or countries), select ONLY the single most comprehensive article and represent it once.
-2. **Limit Output**: You MUST return a maximum of 10 articles in the `relevant_articles` array. Select the **top 10 most significant and impactful** articles for AIFOD's mission.
-3. **Relevance Threshold**: Prioritize articles that strictly align with core AIFOD mission topics (international cooperation, ODA, digital divide). However, if fewer than 5 highly relevant articles exist, you should include articles that are moderately relevant to AIFOD's broader themes (such as general AI policy, ethical guidelines, AI education, or AI applications for social good in Korea/Japan that could serve as models or reference points for developing nations). Avoid returning 0 articles unless there is absolutely no AI policy, education, or social good news in the batch.
+1. **Aggressive Deduplication** (CRITICAL — apply BEFORE ranking):
+   - **Same event/announcement**: If multiple articles cover the same event, press release, policy announcement, or corporate action (even from different publishers, languages, or countries), keep ONLY the single most comprehensive article.
+   - **Same underlying story**: Articles that discuss the same topic, trend, or development with substantially overlapping information (e.g., multiple outlets reporting on the same government AI strategy, the same partnership, or the same conference) must be treated as duplicates. Keep only the best one.
+   - **Cross-language duplicates**: A Korean article and a Japanese article about the same international event or policy (e.g., a G7 AI agreement, a UN resolution, a bilateral cooperation) are duplicates. Keep only one.
+   - **Overlapping themes are NOT duplicates**: Two articles about different AI education programs, or different AI ethics regulations in different contexts, are separate stories and should each be kept if relevant.
+   - When in doubt, err on the side of deduplicating. The final output must contain 5 truly distinct stories.
+2. **Limit Output**: You MUST return a maximum of 5 articles in the `relevant_articles` array. Select the **top 5 most significant and impactful** articles for AIFOD's mission.
+3. **Relevance Threshold**: Prioritize articles that strictly align with core AIFOD mission topics (international cooperation, ODA, digital divide). However, if fewer than 3 highly relevant articles exist, you should include articles that are moderately relevant to AIFOD's broader themes (such as general AI policy, ethical guidelines, AI education, or AI applications for social good in Korea/Japan that could serve as models or reference points for developing nations). Avoid returning 0 articles unless there is absolutely no AI policy, education, or social good news in the batch.
 4. **Translate & Summarize**: All titles, summaries, insights, questions, and answers MUST be in English.
 5. Output ONLY the raw JSON object. Do not include markdown code block syntax (like ```json).
 """
@@ -133,7 +138,7 @@ You MUST respond with ONLY a valid JSON object in the exact format shown below (
 
     def filter_articles(self, articles):
         """
-        Process the list of articles, globally deduplicating and selecting the top 10.
+        Process the list of articles, globally deduplicating and selecting the top 5.
         """
         if not articles:
             return []
