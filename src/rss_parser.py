@@ -5,6 +5,7 @@ import feedparser
 import calendar
 import time
 from datetime import datetime, timezone, timedelta
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from src.config import KOREAN_QUERIES, JAPANESE_QUERIES
 
 def get_feed_articles(query, country_code):
@@ -30,34 +31,34 @@ def get_feed_articles(query, country_code):
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0'
     ]
     
-    # 1. Try direct fetching with rotating browser User-Agents
-    for attempt, ua in enumerate(user_agents):
-        req = urllib.request.Request(
-            url,
-            headers={
-                'User-Agent': ua,
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5'
-            }
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=10) as response:
-                xml_data = response.read()
-                feed = feedparser.parse(xml_data)
-                # Check for standard Google block responses parsed as HTML
-                if feed.entries:
-                    return feed.entries
-                # If we parsed it but got 0 entries, it might be due to 503 block page parsed as empty feed
-                if getattr(feed, 'status', 200) in (403, 429, 503) or feed.bozo:
-                    status_code = getattr(feed, 'status', 'unknown')
-                    print(f"Direct fetch attempt {attempt+1} got blocked (status: {status_code}) for query '{query}'.")
-                else:
-                    # Valid response but actually no search results matching the query in the time window
-                    return []
-        except urllib.error.HTTPError as e:
-            print(f"Direct fetch attempt {attempt+1} failed with HTTPError {e.code} for query '{query}' in {country_code}.")
-        except Exception as e:
-            print(f"Direct fetch attempt {attempt+1} failed with error '{e}' for query '{query}' in {country_code}.")
+    # 1. Try direct fetching
+    ua = user_agents[0]
+    req = urllib.request.Request(
+        url,
+        headers={
+            'User-Agent': ua,
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5'
+        }
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as response:
+            xml_data = response.read()
+            feed = feedparser.parse(xml_data)
+            # Check for standard Google block responses parsed as HTML
+            if feed.entries:
+                return feed.entries
+            # If we parsed it but got 0 entries, it might be due to 503 block page parsed as empty feed
+            status_code = getattr(feed, 'status', 200)
+            if status_code in (403, 429, 503) or feed.bozo:
+                print(f"Direct fetch got blocked/empty (status: {status_code}, bozo: {feed.bozo}) for query '{query}'. Trying proxies...")
+            else:
+                # Valid response but actually no search results matching the query in the time window
+                return []
+    except urllib.error.HTTPError as e:
+        print(f"Direct fetch failed with HTTPError {e.code} for query '{query}' in {country_code}. Trying proxies...")
+    except Exception as e:
+        print(f"Direct fetch failed with error '{e}' for query '{query}' in {country_code}. Trying proxies...")
             
     # 2. Try via corsproxy.io proxy fallback
     print(f"Attempting fallback via corsproxy.io for query '{query}'...")
@@ -107,62 +108,50 @@ def parse_and_filter_articles(hours_back=24):
     seen_urls = set()
     unique_articles = []
     
-    # Process Korean feeds
-    print(f"Fetching news from Korea (within last {hours_back} hours)...")
+    # Helper to fetch single query
+    def fetch_single_query(query, country_code):
+        return query, country_code, get_feed_articles(query, country_code)
+
+    all_tasks = []
     for query in KOREAN_QUERIES:
-        entries = get_feed_articles(query, 'KR')
-        for entry in entries:
-            url = entry.get('link')
-            if not url or url in seen_urls:
-                continue
-                
-            # Parse published date
-            published_parsed = entry.get('published_parsed')
-            if published_parsed:
-                pub_time = datetime.fromtimestamp(calendar.timegm(published_parsed), tz=timezone.utc)
-            else:
-                # Fallback if published_parsed not available
-                pub_time = now
-                
-            if pub_time >= time_threshold:
-                seen_urls.add(url)
-                unique_articles.append({
-                    'title': entry.get('title', 'No Title'),
-                    'link': url,
-                    'source': entry.get('source', {}).get('title', 'Unknown'),
-                    'published': pub_time.isoformat(),
-                    'country': 'KR',
-                    'query_matched': query,
-                    'description': entry.get('summary', '') # summary often contains description in RSS
-                })
-                
-    # Process Japanese feeds
-    print(f"Fetching news from Japan (within last {hours_back} hours)...")
+        all_tasks.append((query, 'KR'))
     for query in JAPANESE_QUERIES:
-        entries = get_feed_articles(query, 'JP')
-        for entry in entries:
-            url = entry.get('link')
-            if not url or url in seen_urls:
-                continue
-                
-            # Parse published date
-            published_parsed = entry.get('published_parsed')
-            if published_parsed:
-                pub_time = datetime.fromtimestamp(calendar.timegm(published_parsed), tz=timezone.utc)
-            else:
-                pub_time = now
-                
-            if pub_time >= time_threshold:
-                seen_urls.add(url)
-                unique_articles.append({
-                    'title': entry.get('title', 'No Title'),
-                    'link': url,
-                    'source': entry.get('source', {}).get('title', 'Unknown'),
-                    'published': pub_time.isoformat(),
-                    'country': 'JP',
-                    'query_matched': query,
-                    'description': entry.get('summary', '')
-                })
+        all_tasks.append((query, 'JP'))
+        
+    print(f"Fetching news from Korea and Japan (within last {hours_back} hours) concurrently...")
+    
+    max_workers = min(len(all_tasks), 15)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_query = {
+            executor.submit(fetch_single_query, q, c): (q, c) for q, c in all_tasks
+        }
+        
+        for future in as_completed(future_to_query):
+            query, country, entries = future.result()
+            for entry in entries:
+                url = entry.get('link')
+                if not url or url in seen_urls:
+                    continue
+                    
+                # Parse published date
+                published_parsed = entry.get('published_parsed')
+                if published_parsed:
+                    pub_time = datetime.fromtimestamp(calendar.timegm(published_parsed), tz=timezone.utc)
+                else:
+                    # Fallback if published_parsed not available
+                    pub_time = now
+                    
+                if pub_time >= time_threshold:
+                    seen_urls.add(url)
+                    unique_articles.append({
+                        'title': entry.get('title', 'No Title'),
+                        'link': url,
+                        'source': entry.get('source', {}).get('title', 'Unknown'),
+                        'published': pub_time.isoformat(),
+                        'country': country,
+                        'query_matched': query,
+                        'description': entry.get('summary', '') # summary often contains description in RSS
+                    })
                 
     # Sort all unique articles by publication date, newest first
     unique_articles.sort(key=lambda x: x['published'], reverse=True)
