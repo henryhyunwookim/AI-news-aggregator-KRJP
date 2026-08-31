@@ -329,7 +329,6 @@ sequenceDiagram
 │   └── rss_parser.py    # RSS parsing & filtering by publication time
 ├── deployment/
 │   └── deploy_cloud.ps1 # PowerShell script to build & deploy to GCP
-├── flowchart.md         # Standalone technical flowcharts & sequence diagrams
 ├── .env                 # Local environment configuration (git-ignored)
 ├── .env.example         # Template for environment configuration
 ├── .gcloudignore        # Custom ignore rules to copy credentials during builds
