@@ -8,9 +8,11 @@ class NewsFilter:
         self.api_key = api_key or GEMINI_API_KEY
         if not self.api_key:
             raise ValueError("Gemini API key is required. Set GEMINI_API_KEY in .env or pass it to NewsFilter.")
-        genai.configure(api_key=self.api_key)
-        # Using gemini-2.5-flash-lite as used in the user's other workspace, or fallback
-        self.model = genai.GenerativeModel('gemini-2.5-flash-lite')
+        # Using gemini-2.5-flash-lite with guaranteed JSON response mode
+        self.model = genai.GenerativeModel(
+            'gemini-2.5-flash-lite',
+            generation_config={"response_mime_type": "application/json"}
+        )
 
     def filter_and_translate_batch(self, articles):
         """
