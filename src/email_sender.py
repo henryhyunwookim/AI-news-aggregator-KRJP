@@ -58,7 +58,7 @@ class EmailSender:
                 if insight:
                     insight_html = f"""
                     <div style="background-color: #f5f3ff; border-left: 4px solid #8b5cf6; padding: 12px 14px; border-radius: 0 8px 8px 0; margin-bottom: 16px;">
-                        <div style="color: #6d28d9; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; font-family: 'Plus Jakarta Sans', Arial, sans-serif;">AIFOD Insight & Impact</div>
+                        <div style="color: #6d28d9; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; font-family: 'Plus Jakarta Sans', Arial, sans-serif;">AIFOD Strategic Insight</div>
                         <p style="margin: 0; color: #4c1d95; font-size: 13px; font-family: 'Plus Jakarta Sans', Arial, sans-serif; line-height: 1.5;">
                             {insight}
                         </p>
@@ -69,12 +69,12 @@ class EmailSender:
                 if question and answer:
                     qa_html = f"""
                     <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 14px; margin-top: 16px;">
-                        <div style="color: #166534; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; font-family: 'Plus Jakarta Sans', Arial, sans-serif;">Discussion Q&A (AIFOD Stance)</div>
+                        <div style="color: #166534; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; font-family: 'Plus Jakarta Sans', Arial, sans-serif;">Practitioner Q&A & Stance</div>
                         <div style="margin-bottom: 8px;">
                             <strong style="color: #166534; font-size: 13px; font-family: 'Plus Jakarta Sans', Arial, sans-serif;">Q: {question}</strong>
                         </div>
                         <div style="color: #14532d; font-size: 13px; font-family: 'Plus Jakarta Sans', Arial, sans-serif; line-height: 1.5; padding-left: 14px; border-left: 2px solid #86efac; font-style: italic;">
-                            <strong>AIFOD Perspective:</strong> {answer}
+                            <strong>AIFOD Stance:</strong> {answer}
                         </div>
                     </div>
                     """
@@ -98,22 +98,15 @@ class EmailSender:
                         Original: {art['original_title']}
                     </p>
                     
-                    <!-- Relevance Badge / Block -->
-                    <div style="background-color: #f8fafc; border-left: 4px solid #cbd5e1; padding: 10px 14px; border-radius: 0 8px 8px 0; margin-bottom: 16px;">
-                        <p style="margin: 0; color: #475569; font-size: 13px; font-family: 'Plus Jakarta Sans', Arial, sans-serif; line-height: 1.5;">
-                            <strong>AIFOD Focus:</strong> {art['relevance_explanation']}
-                        </p>
-                    </div>
-                    
-                    <!-- Summary -->
+                    <!-- Summary (What Happened) -->
                     <div style="color: #334155; font-size: 14px; line-height: 1.6; font-family: 'Plus Jakarta Sans', Arial, sans-serif; margin-bottom: 16px;">
                         {art['english_summary']}
                     </div>
 
-                    <!-- Insight Block -->
+                    <!-- Strategic Insight Block -->
                     {insight_html}
 
-                    <!-- Q&A Block -->
+                    <!-- Q&A & Stance Block -->
                     {qa_html}
                 </div>
                 """
@@ -218,13 +211,12 @@ class EmailSender:
             for art in relevant_articles:
                 plain_text += f"- {art['english_title']} ({art['country']})\n"
                 plain_text += f"  Source: {art['source']} | Link: {art['link']}\n"
-                plain_text += f"  Focus: {art['relevance_explanation']}\n"
                 plain_text += f"  Summary: {art['english_summary']}\n"
                 if art.get('aifod_insight'):
-                    plain_text += f"  Insight: {art['aifod_insight']}\n"
+                    plain_text += f"  Strategic Insight: {art['aifod_insight']}\n"
                 if art.get('aifod_question'):
                     plain_text += f"  Question: {art['aifod_question']}\n"
-                    plain_text += f"  Answer: {art['aifod_suggested_answer']}\n"
+                    plain_text += f"  Stance: {art.get('aifod_suggested_answer', '')}\n"
                 plain_text += "\n"
             plain_text += "\nCompiled by AIFOD Daily News Bot."
             
@@ -252,8 +244,10 @@ if __name__ == "__main__":
         test_articles = [{
             "original_title": "AI 개발도상국을 위한 공헌 프로그램 출범",
             "english_title": "Launch of Contribution Program for AI in Developing Countries",
-            "english_summary": "A new AI initiative was announced by Korean agencies to support digital infrastructure in developing countries. It aims to provide education and cloud resources.",
-            "relevance_explanation": "Directly supports capacity building and digital divide mitigation in developing countries.",
+            "english_summary": "A new AI initiative was announced by Korean agencies to support digital infrastructure in developing countries, providing technical education and subsidized cloud resources.",
+            "aifod_insight": "This initiative provides direct capacity-building pathways for Global South partners to leverage Korean infrastructure without proprietary vendor lock-in.",
+            "aifod_question": "How can partner countries ensure sustainable funding after the initial bilateral subsidy expires?",
+            "aifod_suggested_answer": "Establish local co-investment frameworks and train in-country technicians to transition maintenance locally.",
             "link": "https://example.com/test-news",
             "source": "ICT News Korea",
             "country": "KR",

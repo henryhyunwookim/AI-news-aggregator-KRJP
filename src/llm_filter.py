@@ -54,12 +54,11 @@ You MUST respond with ONLY a valid JSON object in the exact format shown below (
   "relevant_articles": [
     {{
       "index": 0,
-      "relevance_explanation": "A one-sentence explanation of why this article is relevant to AIFOD.",
       "english_title": "Clean, natural English translation of the article's title",
-      "english_summary": "A high-quality 2-3 sentence summary in English highlighting the core information, especially details about international cooperation, policy impacts, or technologies used.",
-      "aifod_insight": "An analytical paragraph explaining the significance/implication of this news specifically for AIFOD's mission, capacity building, or Global South advocacy.",
-      "aifod_question": "A critical, analytical question that AIFOD practitioners should ask policymakers or stakeholders regarding this development.",
-      "aifod_suggested_answer": "A suggested stance, strategy, or response representing AIFOD's perspective on how to address the above question."
+      "english_summary": "A concise 2-3 sentence factual summary in English highlighting what happened: key actors, policies, technologies, or international partnerships.",
+      "aifod_insight": "A focused 2-3 sentence strategic analysis explaining the direct significance/implication of this news specifically for AIFOD's mission and developing nations (Global South opportunities, equity, or policy impact).",
+      "aifod_question": "A critical, forward-looking strategic question that AIFOD practitioners should ask policymakers or international partners regarding this development.",
+      "aifod_suggested_answer": "A concise, actionable 1-2 sentence recommendation or stance representing AIFOD's perspective on how to address the above question."
     }}
   ]
 }}
@@ -71,10 +70,16 @@ You MUST respond with ONLY a valid JSON object in the exact format shown below (
    - **Thematic Redundancy & Diversity Constraint**: Even if two articles are technically about different events or different entities (e.g., two different universities launching similar AI training programs, two different local governments adopting AI chatbots, or two different companies launching similar AI translation tools), if their core theme and application scenario are highly similar, treat them as duplicates/redundant topics. Keep only the single most impactful or representative article of that type to ensure the 5 selected articles represent 5 completely different facets of AI news.
    - **Cross-country/Cross-language duplicates (Optional/Gentle)**: A Korean article and a Japanese article about the exact same international event or policy (e.g., a G7 AI agreement, a UN resolution, a bilateral cooperation) are duplicates. Keep only one. However, national/local developments in Korea and Japan that have similar themes but occur independently (e.g., a Korean agency launching an AI education program and a Japanese agency launching a different AI education program) are NOT duplicates and both may be included if they are highly impactful.
    - When in doubt, always err on the side of deduplicating and diversifying. The final list of 5 articles must have zero conceptual, thematic, or event-based repetition.
-2. **Limit Output**: You MUST return a maximum of 5 articles in the `relevant_articles` array. Select the **top 5 most significant and impactful** articles for AIFOD's mission.
-3. **Relevance Threshold**: Prioritize articles that strictly align with core AIFOD mission topics (international cooperation, ODA, digital divide). However, if fewer than 3 highly relevant articles exist, you should include articles that are moderately relevant to AIFOD's broader themes (such as general AI policy, ethical guidelines, AI education, or AI applications for social good in Korea/Japan that could serve as models or reference points for developing nations). Avoid returning 0 articles unless there is absolutely no AI policy, education, or social good news in the batch.
-4. **Translate & Summarize**: All titles, summaries, insights, questions, and answers MUST be in English.
-5. Output ONLY the raw JSON object. Do not include markdown code block syntax (like ```json).
+2. **Strict Section Non-Overlap & Anti-Repetition (CRITICAL)**:
+   - Every section within an article must deliver distinct, non-redundant value:
+     - `english_summary`: Strictly factual reporting of what occurred. Do NOT include AIFOD policy commentary or recommendations here.
+     - `aifod_insight`: Strategic analysis and "So What?" for developing nations and AIFOD. Must NOT rehash facts from the summary; focus purely on systemic impact, risks, or opportunities.
+     - `aifod_question`: Must introduce an unresolved policy, implementation, or ethical dilemma NOT already answered or settled in the insight.
+     - `aifod_suggested_answer`: A punchy, forward-looking stance or concrete action point. Do NOT restate the insight or question wording.
+3. **Limit Output**: You MUST return a maximum of 5 articles in the `relevant_articles` array. Select the **top 5 most significant and impactful** articles for AIFOD's mission.
+4. **Relevance Threshold**: Prioritize articles that strictly align with core AIFOD mission topics (international cooperation, ODA, digital divide). However, if fewer than 3 highly relevant articles exist, you should include articles that are moderately relevant to AIFOD's broader themes (such as general AI policy, ethical guidelines, AI education, or AI applications for social good in Korea/Japan that could serve as models or reference points for developing nations). Avoid returning 0 articles unless there is absolutely no AI policy, education, or social good news in the batch.
+5. **Translate & Summarize**: All titles, summaries, insights, questions, and answers MUST be in English.
+6. Output ONLY the raw JSON object. Do not include markdown code block syntax (like ```json).
 """
 
         max_retries = 5
@@ -112,9 +117,9 @@ You MUST respond with ONLY a valid JSON object in the exact format shown below (
                         orig = articles[idx]
                         filtered_articles.append({
                             "original_title": orig["title"],
-                            "english_title": item["english_title"],
-                            "english_summary": item["english_summary"],
-                            "relevance_explanation": item["relevance_explanation"],
+                            "english_title": item.get("english_title", orig["title"]),
+                            "english_summary": item.get("english_summary", ""),
+                            "relevance_explanation": item.get("relevance_explanation", ""),
                             "aifod_insight": item.get("aifod_insight", ""),
                             "aifod_question": item.get("aifod_question", ""),
                             "aifod_suggested_answer": item.get("aifod_suggested_answer", ""),

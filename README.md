@@ -131,7 +131,7 @@ flowchart TD
         
         P_RULES["⚖️ Cognitive Filtering & Deduplication Rules:<br/>• Zero Tolerance for Identical Press Releases<br/>• Group Substantially Overlapping Trends<br/>• Thematic Redundancy Filter (Max 1 per theme type)<br/>• Cross-Lingual KR/JP Event Deduplication<br/>• Select Top 5 Most Impactful Developments"]
         
-        P_SCHEMA["📋 Enforced JSON Schema Output:<br/>• english_title<br/>• english_summary (2-3 sentences)<br/>• relevance_explanation<br/>• aifod_insight<br/>• aifod_question<br/>• aifod_suggested_answer"]
+        P_SCHEMA["📋 Enforced JSON Schema Output:<br/>• english_title<br/>• english_summary (2-3 sentences)<br/>• aifod_insight (Strategic Analysis)<br/>• aifod_question (Critical Dilemma)<br/>• aifod_suggested_answer (Actionable Stance)"]
     end
 
     %% Execution & Resilience Engine
