@@ -1,159 +1,206 @@
 import json
 import time
+import re
 import google.generativeai as genai
+from rapidfuzz import fuzz
 from src.config import GEMINI_API_KEY
+from src.rss_parser import enrich_candidate_articles
 
 class NewsFilter:
     def __init__(self, api_key=None):
         self.api_key = api_key or GEMINI_API_KEY
         if not self.api_key:
-            raise ValueError("Gemini API key is required. Set GEMINI_API_KEY in .env or pass it to NewsFilter.")
-        # Using gemini-2.5-flash-lite with guaranteed JSON response mode
+            raise ValueError("Gemini API key is required. Set GEMINI_API_KEY or GOOGLE_API_KEY in .env or pass it to NewsFilter.")
+        genai.configure(api_key=self.api_key)
         self.model = genai.GenerativeModel(
             'gemini-2.5-flash-lite',
             generation_config={"response_mime_type": "application/json"}
         )
 
-    def filter_and_translate_batch(self, articles):
+    def select_candidates(self, articles):
         """
-        Filters articles for AIFOD relevance, translates them to English,
-        deduplicates similar stories, and selects the top 5.
-        Articles is a list of dicts.
+        Stage 1: Country-balanced candidate selection.
+        Picks the top 3 candidate stories from South Korea and top 3 from Japan
+        (total 6 candidates) based on AIFOD relevance and diversity.
         """
-        if not articles:
+        kr_pool = [a for a in articles if a.get('country') == 'KR'][:35]
+        jp_pool = [a for a in articles if a.get('country') == 'JP'][:35]
+
+        # If one country is empty or very low, fallback to combined pool
+        if not kr_pool and not jp_pool:
             return []
 
-        # Prepare articles list for the prompt
-        simplified_articles = []
-        for idx, art in enumerate(articles):
-            simplified_articles.append({
-                "index": idx,
-                "title": art["title"],
-                "source": art["source"],
-                "country": art["country"],
-                "query": art["query_matched"],
-                "snippet": art["description"][:300] if art.get("description") else ""
+        kr_items = [{"id": f"KR_{i}", "title": a['title'], "source": a['source']} for i, a in enumerate(kr_pool)]
+        jp_items = [{"id": f"JP_{i}", "title": a['title'], "source": a['source']} for i, a in enumerate(jp_pool)]
+
+        prompt = f"""You are an expert news analyst for the **AI for Developing Countries Forum (AIFOD)**.
+Your task is to analyze the candidate AI news headlines from South Korea and Japan and select the **top 3 most relevant, impactful, and distinct candidate stories from South Korea** and the **top 3 from Japan** (total 6 candidates).
+
+### AIFOD Mission & Core Topics:
+1. **Bridging the AI Gap**: Actions, policies, or projects addressing the AI digital divide between developed and developing nations (the Global South).
+2. **AI Governance & Social Equity**: Ethical guidelines, regulatory frameworks, human rights, and social equity in AI.
+3. **Capacity Building & Education**: AI education, skills development, or human resource initiatives with potential international applicability.
+4. **International Cooperation & ODA**: Official Development Assistance (e.g. KOICA, JICA), bilateral/multilateral agreements, or development aid involving AI.
+5. **AI for Social Good**: AI applications in healthcare, education, agriculture, climate mitigation, disaster prevention, or public service.
+
+### Critical Rules:
+- **Zero Duplicate Events**: Do not select multiple articles that report on the same underlying announcement, event, or press release.
+- **Thematic Diversity**: Select stories representing different dimensions of AI (e.g. diplomacy/ODA, regulation, climate/social good, education).
+
+South Korea Articles:
+{json.dumps(kr_items, ensure_ascii=False, indent=1)}
+
+Japan Articles:
+{json.dumps(jp_items, ensure_ascii=False, indent=1)}
+
+### Response Format:
+Respond with ONLY a valid JSON object in this format:
+{{
+  "selected_ids": ["KR_0", "KR_1", "KR_2", "JP_0", "JP_1", "JP_2"]
+}}
+"""
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                resp = self.model.generate_content(prompt)
+                data = json.loads(resp.text.strip())
+                cand_ids = data.get("selected_ids", [])
+                
+                candidates = []
+                for cid in cand_ids:
+                    if cid.startswith("KR_"):
+                        idx = int(cid.split("_")[1])
+                        if 0 <= idx < len(kr_pool):
+                            candidates.append(kr_pool[idx])
+                    elif cid.startswith("JP_"):
+                        idx = int(cid.split("_")[1])
+                        if 0 <= idx < len(jp_pool):
+                            candidates.append(jp_pool[idx])
+                if candidates:
+                    return candidates
+            except Exception as e:
+                print(f"Candidate selection attempt {attempt+1} error: {e}")
+                time.sleep(2)
+
+        # Fallback: select first 3 KR and first 3 JP
+        return kr_pool[:3] + jp_pool[:3]
+
+    def synthesize_articles(self, enriched_candidates):
+        """
+        Stage 2: Deep synthesis of the top 5 articles with country balance
+        (2-3 from Korea and 2-3 from Japan) using enriched real publisher text.
+        """
+        if not enriched_candidates:
+            return []
+
+        payload = []
+        for i, c in enumerate(enriched_candidates):
+            payload.append({
+                "candidate_index": i,
+                "country": c['country'],
+                "original_title": c['title'],
+                "source": c['source'],
+                "article_text": c.get('full_snippet', '')
             })
 
         prompt = f"""You are an expert news analyst for the **AI for Developing Countries Forum (AIFOD)**.
-Your task is to analyze the following list of AI-related articles from South Korea and Japan, filter them for relevance to AIFOD's mission, aggressively deduplicate similar stories, and select the **top 5 most impactful articles** of the day, translating and summarizing them in English.
+From the {len(enriched_candidates)} enriched candidate articles below, select the **top 5 most impactful articles** of the day for AIFOD's mission.
 
-### AIFOD Mission & Relevant Topics:
-1. **Bridging the AI Gap**: Actions, policies, or projects addressing the AI accessibility/digital divide between developed and developing nations (the Global South).
-2. **AI Governance & Social Equity**: Regulatory, ethical, or policy frameworks that emphasize inclusivity, human-centric AI, and equity in emerging economies.
-3. **Capacity Building & Education**: AI education, skills training, or human resource initiatives in Korea/Japan, particularly those with international outreach or applicability to emerging regions.
-4. **International Cooperation & Partnerships**: Official Development Assistance (ODA), cooperation programs (e.g., via KOICA, JICA), university/research exchanges, or joint public/private ventures between Korea/Japan and developing nations regarding AI.
-5. **AI for Social Good**: AI applications in healthcare, education, agriculture, disaster mitigation, or climate change that could be applied to or support developing countries.
+### Country Balance Constraint (MANDATORY):
+You MUST select a balanced representation: **2 or 3 articles from South Korea (KR)** and **2 or 3 articles from Japan (JP)**, totaling exactly 5 articles.
 
-### Articles to Analyze:
-{json.dumps(simplified_articles, ensure_ascii=False, indent=2)}
+### Output Quality & Non-Overlap Rules:
+1. **`english_title`**: Natural, accurate, professional English translation of the headline.
+2. **`english_summary` (Dense & Factual)**: A high-quality 3-4 sentence factual summary in English highlighting WHAT happened. You MUST include concrete entities, dates, venues, partner nations, technical details, or policy specifics present in the source text. Do NOT use generic filler or merely repeat the title.
+3. **`aifod_insight` (Strategic "So What?")**: A focused 2-3 sentence strategic analysis explaining the direct significance/implication specifically for AIFOD's mission and developing nations (Global South opportunities, equity, or policy impact). Must NOT rehash facts from the summary.
+4. **`aifod_question` (Forward-Looking Dilemma)**: A critical, forward-looking strategic question that AIFOD practitioners should ask policymakers or international partners.
+5. **`aifod_suggested_answer` (Actionable Stance)**: A concise, actionable 1-2 sentence recommendation or stance representing AIFOD's perspective on how to address the above question.
+
+Candidate Articles:
+{json.dumps(payload, ensure_ascii=False, indent=2)}
 
 ### Response Format:
-You MUST respond with ONLY a valid JSON object in the exact format shown below (no other text, markdown blocks, or commentary).
+Respond with ONLY a valid JSON object in this format:
 {{
-  "relevant_articles": [
+  "articles": [
     {{
-      "index": 0,
-      "english_title": "Clean, natural English translation of the article's title",
-      "english_summary": "A concise 2-3 sentence factual summary in English highlighting what happened: key actors, policies, technologies, or international partnerships.",
-      "aifod_insight": "A focused 2-3 sentence strategic analysis explaining the direct significance/implication of this news specifically for AIFOD's mission and developing nations (Global South opportunities, equity, or policy impact).",
-      "aifod_question": "A critical, forward-looking strategic question that AIFOD practitioners should ask policymakers or international partners regarding this development.",
-      "aifod_suggested_answer": "A concise, actionable 1-2 sentence recommendation or stance representing AIFOD's perspective on how to address the above question."
+      "candidate_index": 0,
+      "english_title": "...",
+      "english_summary": "...",
+      "aifod_insight": "...",
+      "aifod_question": "...",
+      "aifod_suggested_answer": "..."
     }}
   ]
 }}
-
-### Rules:
-1. **Ultra-Strict Deduplication & Topic Diversity** (CRITICAL — apply BEFORE ranking):
-   - **Identical Events & Announcements (Zero Tolerance)**: If multiple articles cover the exact same event, press release, announcement, university program completion, or corporate partnership (even if reported by different publishers, written in different styles, or utilizing different translations), you MUST keep ONLY the single most comprehensive article. Keep the one that contains the most detail and discard the rest.
-   - **Substantially Overlapping Content**: If two articles discuss the same underlying story, trend, or initiative (e.g., multiple outlets reporting on a new government funding round, the same AI guidelines, or different details of the same conference), treat them as duplicates. Keep only the best one.
-   - **Thematic Redundancy & Diversity Constraint**: Even if two articles are technically about different events or different entities (e.g., two different universities launching similar AI training programs, two different local governments adopting AI chatbots, or two different companies launching similar AI translation tools), if their core theme and application scenario are highly similar, treat them as duplicates/redundant topics. Keep only the single most impactful or representative article of that type to ensure the 5 selected articles represent 5 completely different facets of AI news.
-   - **Cross-country/Cross-language duplicates (Optional/Gentle)**: A Korean article and a Japanese article about the exact same international event or policy (e.g., a G7 AI agreement, a UN resolution, a bilateral cooperation) are duplicates. Keep only one. However, national/local developments in Korea and Japan that have similar themes but occur independently (e.g., a Korean agency launching an AI education program and a Japanese agency launching a different AI education program) are NOT duplicates and both may be included if they are highly impactful.
-   - When in doubt, always err on the side of deduplicating and diversifying. The final list of 5 articles must have zero conceptual, thematic, or event-based repetition.
-2. **Strict Section Non-Overlap & Anti-Repetition (CRITICAL)**:
-   - Every section within an article must deliver distinct, non-redundant value:
-     - `english_summary`: Strictly factual reporting of what occurred. Do NOT include AIFOD policy commentary or recommendations here.
-     - `aifod_insight`: Strategic analysis and "So What?" for developing nations and AIFOD. Must NOT rehash facts from the summary; focus purely on systemic impact, risks, or opportunities.
-     - `aifod_question`: Must introduce an unresolved policy, implementation, or ethical dilemma NOT already answered or settled in the insight.
-     - `aifod_suggested_answer`: A punchy, forward-looking stance or concrete action point. Do NOT restate the insight or question wording.
-3. **Limit Output**: You MUST return a maximum of 5 articles in the `relevant_articles` array. Select the **top 5 most significant and impactful** articles for AIFOD's mission.
-4. **Relevance Threshold**: Prioritize articles that strictly align with core AIFOD mission topics (international cooperation, ODA, digital divide). However, if fewer than 3 highly relevant articles exist, you should include articles that are moderately relevant to AIFOD's broader themes (such as general AI policy, ethical guidelines, AI education, or AI applications for social good in Korea/Japan that could serve as models or reference points for developing nations). Avoid returning 0 articles unless there is absolutely no AI policy, education, or social good news in the batch.
-5. **Translate & Summarize**: All titles, summaries, insights, questions, and answers MUST be in English.
-6. Output ONLY the raw JSON object. Do not include markdown code block syntax (like ```json).
 """
-
-        max_retries = 5
-        retry_delay = 3
-        
+        max_retries = 3
         for attempt in range(max_retries):
             try:
-                response = self.model.generate_content(prompt)
-                text = response.text.strip()
+                resp = self.model.generate_content(prompt)
+                data = json.loads(resp.text.strip())
+                items = data.get("articles", [])
                 
-                # Attempt to extract JSON
-                extracted_json = text
-                if '```json' in text:
-                    extracted_json = text.split('```json')[1].split('```')[0].strip()
-                elif '```' in text:
-                    extracted_json = text.split('```')[1].split('```')[0].strip()
+                results = []
+                seen_indices = set()
                 
-                # Try parsing JSON
-                try:
-                    result = json.loads(extracted_json)
-                except json.JSONDecodeError:
-                    # Fallback using regex to find first '{' and last '}'
-                    import re
-                    json_match = re.search(r'(\{[\s\S]*\})', text)
-                    if json_match:
-                        result = json.loads(json_match.group(1))
-                    else:
-                        raise ValueError("No JSON object found in response.")
-
-                # Match index back to original articles
-                filtered_articles = []
-                for item in result.get("relevant_articles", []):
-                    idx = item.get("index")
-                    if idx is not None and 0 <= idx < len(articles):
-                        orig = articles[idx]
-                        filtered_articles.append({
+                for item in items:
+                    c_idx = item.get("candidate_index")
+                    if c_idx is not None and 0 <= c_idx < len(enriched_candidates) and c_idx not in seen_indices:
+                        seen_indices.add(c_idx)
+                        orig = enriched_candidates[c_idx]
+                        
+                        # Post-guardrail: ensure no title duplication among selected items
+                        title_candidate = item.get("english_title", orig["title"])
+                        is_dup = False
+                        for existing in results:
+                            if fuzz.token_set_ratio(title_candidate.lower(), existing["english_title"].lower()) > 55:
+                                is_dup = True
+                                break
+                        if is_dup:
+                            continue
+                            
+                        results.append({
                             "original_title": orig["title"],
-                            "english_title": item.get("english_title", orig["title"]),
+                            "english_title": title_candidate,
                             "english_summary": item.get("english_summary", ""),
-                            "relevance_explanation": item.get("relevance_explanation", ""),
                             "aifod_insight": item.get("aifod_insight", ""),
                             "aifod_question": item.get("aifod_question", ""),
                             "aifod_suggested_answer": item.get("aifod_suggested_answer", ""),
-                            "link": orig["link"],
+                            "link": orig.get("canonical_link") or orig["link"],
                             "source": orig["source"],
                             "country": orig["country"],
                             "published": orig["published"]
                         })
-                return filtered_articles
-
+                        if len(results) >= 5:
+                            break
+                            
+                if results:
+                    return results
             except Exception as e:
-                error_msg = str(e)
-                print(f"Filtering attempt {attempt+1} failed: {error_msg}")
-                if attempt < max_retries - 1:
-                    if "429" in error_msg or "Resource exhausted" in error_msg:
-                        print("Rate limit reached. Waiting 60 seconds before retrying...")
-                        time.sleep(60)
-                    else:
-                        time.sleep(retry_delay * (attempt + 1))
-                else:
-                    print(f"Failed to process batch after {max_retries} attempts.")
-                    return []
+                print(f"Deep synthesis attempt {attempt+1} error: {e}")
+                time.sleep(2)
+                
+        return []
 
     def filter_articles(self, articles):
         """
-        Process the list of articles, globally deduplicating and selecting the top 5.
+        Orchestrates country-balanced candidate selection, real content enrichment,
+        and deep LLM synthesis with deduplication guardrails.
         """
         if not articles:
             return []
-            
-        # To avoid exceeding tokens or output limits, cap at first 100 articles
-        if len(articles) > 100:
-            print(f"Large harvest: capping evaluation at 100 articles (out of {len(articles)}).")
-            articles = articles[:100]
-            
-        print(f"Sending {len(articles)} unique articles to Gemini for deduplication, relevance filtering, and ranking...")
-        return self.filter_and_translate_batch(articles)
+
+        print(f"Stage 1: Selecting top candidate stories with country balance from {len(articles)} deduplicated articles...")
+        candidates = self.select_candidates(articles)
+        print(f"Selected {len(candidates)} candidate articles ({sum(1 for c in candidates if c['country']=='KR')} KR, {sum(1 for c in candidates if c['country']=='JP')} JP).")
+
+        print("Stage 2: Enriching candidate articles with canonical URLs and lead content...")
+        enriched = enrich_candidate_articles(candidates)
+
+        print("Stage 3: Running deep synthesis with full source text and country balance...")
+        final_articles = self.synthesize_articles(enriched)
+        print(f"Deep synthesis complete: {len(final_articles)} articles produced.")
+
+        return final_articles
+

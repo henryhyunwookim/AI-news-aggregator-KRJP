@@ -11,7 +11,8 @@ SERVICE_NAME = os.getenv("SERVICE_NAME", "ai-news-aggregator-krjp")
 JOB_NAME = os.getenv("JOB_NAME", "ai-news-aggregator-daily-trigger")
 
 # Gemini API
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+
 
 # Email Settings
 RECIPIENT_EMAIL = os.getenv("RECIPIENT_EMAIL", "henry.hyunwookim@gmail.com")

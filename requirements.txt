@@ -7,3 +7,7 @@ gunicorn
 python-dotenv
 beautifulsoup4
 feedparser
+requests
+rapidfuzz
+googlenewsdecoder
+
