@@ -1,34 +1,67 @@
+"""
+AIFOD Daily AI News Aggregator - Configuration Module.
+
+Purpose:
+    Centralizes all application environment variables, GCP infrastructure settings,
+    Gemini API configurations, Gmail OAuth scopes, and multilingual search query matrices.
+
+Environment Variables:
+    - GCP_PROJECT_ID: Google Cloud Platform Project ID
+    - GCP_REGION: Cloud Run and Scheduler region (default: us-central1)
+    - SERVICE_NAME: Cloud Run service name (default: ai-news-aggregator-krjp)
+    - JOB_NAME: Cloud Scheduler job name (default: ai-news-aggregator-daily-trigger)
+    - GEMINI_API_KEY / GOOGLE_API_KEY: Authentication key for Google Gemini Generative AI
+    - RECIPIENT_EMAIL: Target email address for daily digest delivery
+    - RECIPIENT_NAME: Target recipient name for report personalization (default: AIFOD Practitioner)
+    - TIMEZONE: Timezone identifier for scheduling and report dates (default: Asia/Tokyo)
+"""
+
+from __future__ import annotations
+
 import os
 from dotenv import load_dotenv
 
-# Load env variables from .env if present
+# Load local environment variables from .env file if present in workspace root
 load_dotenv()
 
-# Google Cloud Platform Configuration
-GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID", "gen-lang-client-0480639565")
-GCP_REGION = os.getenv("GCP_REGION", "us-central1")
-SERVICE_NAME = os.getenv("SERVICE_NAME", "ai-news-aggregator-krjp")
-JOB_NAME = os.getenv("JOB_NAME", "ai-news-aggregator-daily-trigger")
+# ===========================================================================
+# 1. Google Cloud Platform & Serverless Configuration
+# ===========================================================================
+GCP_PROJECT_ID: str = os.getenv("GCP_PROJECT_ID", "")
+GCP_REGION: str = os.getenv("GCP_REGION", "us-central1")
+SERVICE_NAME: str = os.getenv("SERVICE_NAME", "ai-news-aggregator-krjp")
+JOB_NAME: str = os.getenv("JOB_NAME", "ai-news-aggregator-daily-trigger")
 
-# Gemini API
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+# ===========================================================================
+# 2. Large Language Model (Gemini) API Key
+# ===========================================================================
+GEMINI_API_KEY: str | None = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
 
+# ===========================================================================
+# 3. Email Delivery & OAuth Scopes
+# ===========================================================================
+RECIPIENT_EMAIL: str = os.getenv("RECIPIENT_EMAIL", "")
+RECIPIENT_NAME: str = os.getenv("RECIPIENT_NAME", "AIFOD Practitioner")
 
-# Email Settings
-RECIPIENT_EMAIL = os.getenv("RECIPIENT_EMAIL", "henry.hyunwookim@gmail.com")
-
-# Gmail Scopes (Readonly for reading profile, Send for sending summary, Modify for labeling if needed)
-SCOPES = [
-    'https://www.googleapis.com/auth/gmail.readonly',
-    'https://www.googleapis.com/auth/gmail.send'
+# Gmail Scopes:
+# - gmail.readonly: Verify authenticated user profile and identity
+# - gmail.send: Transmit formatted MIME digest messages via Google Gmail API
+SCOPES: list[str] = [
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/gmail.send"
 ]
 
-# Timezone settings for logging/scheduler
-TIMEZONE = os.getenv("TIMEZONE", "Asia/Tokyo")
+# ===========================================================================
+# 4. Scheduling & Localization
+# ===========================================================================
+TIMEZONE: str = os.getenv("TIMEZONE", "Asia/Tokyo")
 
-# Google News RSS Search Queries
-# Focused on AI development, international cooperation, policy, capacity building, digital divide, ODA, etc.
-KOREAN_QUERIES = [
+# ===========================================================================
+# 5. Multilingual News RSS Search Query Matrix
+# ===========================================================================
+# Korean queries targeting AI capacity building, ODA, international cooperation,
+# digital divide, policy, and social inclusion.
+KOREAN_QUERIES: list[str] = [
     "AI 개발도상국",
     "인공지능 개발도상국",
     "AI 국제협력",
@@ -49,7 +82,9 @@ KOREAN_QUERIES = [
     "AI 포용"
 ]
 
-JAPANESE_QUERIES = [
+# Japanese queries targeting AI in developing nations, ODA (JICA), digital divide,
+# human resource development, policy governance, and social inclusion.
+JAPANESE_QUERIES: list[str] = [
     "AI 途上国",
     "人工知能 途上国",
     "AI 国際協力",

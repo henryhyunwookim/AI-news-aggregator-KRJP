@@ -63,7 +63,7 @@ flowchart TD
         HTML_BUILDER["🎨 Premium Responsive HTML Builder<br/>• Plus Jakarta Sans Typography<br/>• KR/JP Country Badges & Direct Canonical Links<br/>• Gradient Header & KPI Counters"]
         GMAIL_AUTH["🔐 Gmail OAuth 2.0 Auth<br/><code>credentials.json</code> + <code>token.json</code><br/>(Auto-refresh Token Flow)"]
         GMAIL_API["📬 Google Gmail API<br/>(users.messages.send)"]
-        INBOX["📩 Recipient Mailbox<br/><code>henry.hyunwookim@gmail.com</code>"]
+        INBOX["📩 Recipient Mailbox<br/><code>recipient@example.com</code>"]
     end
 
     %% -------------------------------------------------------------
@@ -212,75 +212,99 @@ flowchart TD
 
 ---
 
-## File Structure
+## Project Structure
 
 ```text
 AI-news-aggregator-KRJP/
-├── src/                     # Application Package
-│   ├── __init__.py          # Package initialization
-│   ├── app.py               # Flask web service entry point for Cloud Run
-│   ├── auth.py              # Gmail OAuth authentication helper
-│   ├── config.py            # Configuration variables, search queries, API keys
-│   ├── email_sender.py      # HTML email generator & Gmail sender
-│   ├── llm_filter.py        # Two-stage candidate selection, enrichment & synthesis
-│   ├── main.py              # Orchestration pipeline
-│   └── rss_parser.py        # Dual-engine RSS fetcher, RapidFuzz clustering, enrichment
-├── tests/                   # Automated Unit Tests
+├── src/                               # Application Package
+│   ├── __init__.py                    # Package initialization
+│   ├── app.py                         # Flask web service entry point for Cloud Run
+│   ├── auth.py                        # Gmail OAuth authentication helper & token refresh
+│   ├── config.py                      # Configuration variables, search queries, API keys
+│   ├── email_sender.py                # HTML email generator & Gmail REST API sender
+│   ├── llm_filter.py                  # Two-stage candidate selection, enrichment & synthesis
+│   ├── main.py                        # Orchestration pipeline & CLI entrypoint
+│   └── rss_parser.py                  # Dual-engine RSS fetcher, RapidFuzz clustering, enrichment
+├── tests/                             # Automated Unit Tests
 │   ├── __init__.py
-│   └── test_rss_parser.py   # Unit tests for URL cleaning, title normalization & clustering
+│   └── test_rss_parser.py             # Unit tests for URL cleaning, title normalization & clustering
 ├── deployment/
-│   └── deploy_cloud.ps1     # PowerShell script to build & deploy to GCP
-├── .env                     # Local environment configuration (git-ignored)
-├── .env.example             # Template for environment configuration
-├── .gcloudignore            # Cloud Build ignore rules
-├── .gitignore               # Comprehensive Git ignore rules
-├── Dockerfile               # Production container definition (python:3.11-slim)
-├── requirements.txt         # Python dependencies
-└── README.md                # Project documentation (this file)
+│   └── deploy_cloud.ps1               # Advanced PowerShell script to build & deploy to GCP
+├── .env                               # Local environment configuration (git-ignored)
+├── .env.example                       # Template for environment configuration
+├── .gcloudignore                      # Cloud Build ignore rules
+├── .gitignore                         # Comprehensive Git ignore rules
+├── Dockerfile                         # Production container definition (python:3.11-slim)
+├── LICENSE                            # MIT License definition
+├── requirements.txt                   # Python dependencies
+└── README.md                          # Project documentation (this file)
 ```
+
+Key files:
+- [src/main.py](file:///c:/Users/hyunwookim/OneDrive%20-%20GAFS/%E3%83%89%E3%82%AD%E3%83%A5%E3%83%A1%E3%83%B3%E3%83%88/GitHub/AI-news-aggregator-KRJP/src/main.py): Primary entry point coordinating authentication, ingestion, filtering, and dispatch.
+- [src/rss_parser.py](file:///c:/Users/hyunwookim/OneDrive%20-%20GAFS/%E3%83%89%E3%82%AD%E3%83%A5%E3%83%A1%E3%83%B3%E3%83%88/GitHub/AI-news-aggregator-KRJP/src/rss_parser.py): RSS parsing, multi-engine fallback, RapidFuzz deduplication, and page scraping.
+- [src/llm_filter.py](file:///c:/Users/hyunwookim/OneDrive%20-%20GAFS/%E3%83%89%E3%82%AD%E3%83%A5%E3%83%A1%E3%83%B3%E3%83%88/GitHub/AI-news-aggregator-KRJP/src/llm_filter.py): Two-stage Gemini prompt orchestration, country balancing, and guardrails.
+- [src/email_sender.py](file:///c:/Users/hyunwookim/OneDrive%20-%20GAFS/%E3%83%89%E3%82%AD%E3%83%A5%E3%83%A1%E3%83%B3%E3%83%88/GitHub/AI-news-aggregator-KRJP/src/email_sender.py): Modern Plus Jakarta Sans responsive HTML email builder and Gmail API sender.
+- [deployment/deploy_cloud.ps1](file:///c:/Users/hyunwookim/OneDrive%20-%20GAFS/%E3%83%89%E3%82%AD%E3%83%A5%E3%83%A1%E3%83%B3%E3%83%88/GitHub/AI-news-aggregator-KRJP/deployment/deploy_cloud.ps1): Automated deployment script for Cloud Run, IAM invoker service account, and Cloud Scheduler.
+
+---
+
+## Configuration & Environment Variables
+
+Create a local `.env` file based on [.env.example](file:///c:/Users/hyunwookim/OneDrive%20-%20GAFS/%E3%83%89%E3%82%AD%E3%83%A5%E3%83%A1%E3%83%B3%E3%83%88/GitHub/AI-news-aggregator-KRJP/.env.example):
+
+| Variable | Description | Default / Example | Required |
+|---|---|---|---|
+| `GEMINI_API_KEY` | Google Gemini Generative AI API Key | `AIzaSy...` | Yes |
+| `GCP_PROJECT_ID` | Google Cloud Project ID for deployment | `your-gcp-project-id` | Yes (for deployment) |
+| `GCP_REGION` | Cloud Run and Scheduler region | `us-central1` | No |
+| `SERVICE_NAME` | Cloud Run service name | `ai-news-aggregator-krjp` | No |
+| `JOB_NAME` | Cloud Scheduler job identifier | `ai-news-aggregator-daily-trigger` | No |
+| `SCHEDULE` | Cron expression for daily trigger | `0 0 * * *` (midnight) | No |
+| `TIMEZONE` | Timezone for report date and scheduler | `Asia/Tokyo` | No |
+| `RECIPIENT_EMAIL` | Target email for daily digest | `your_email@example.com` | Yes |
+| `RECIPIENT_NAME` | Target recipient name in digest footer | `AIFOD Practitioner` | No |
+
+OAuth 2.0 Credentials:
+- `credentials.json`: OAuth Client ID credentials file downloaded from Google Cloud Console (APIs & Services > Credentials).
+- `token.json`: Generated upon successful authentication containing access and refresh tokens.
 
 ---
 
 ## Local Setup & Execution
 
 ### 1. Installation
-Clone this repository and install dependencies (Python 3.11+ recommended):
+Clone the repository and install dependencies (Python 3.11+ recommended):
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Configuration
-Copy `.env.example` to `.env` and fill in your credentials:
+### 2. Configuration Setup
+Copy `.env.example` to `.env` and fill in your keys:
 
 ```bash
 cp .env.example .env
 ```
 
-Key environment variables:
-- `GEMINI_API_KEY`: Google Gemini API Key (or `GOOGLE_API_KEY`).
-- `GCP_PROJECT_ID`: Google Cloud Project ID (e.g. `gen-lang-client-0480639565`).
-- `RECIPIENT_EMAIL`: Recipient email (e.g. `henry.hyunwookim@gmail.com`).
-- `TIMEZONE`: Timezone for schedule/logs (default `Asia/Tokyo`).
-
-Ensure your Google OAuth client credential files (`credentials.json` and `token.json`) are present in the project root directory.
+Ensure `credentials.json` is placed in the project root.
 
 ### 3. Interactive Authentication
-If `token.json` is missing or expired, run interactive authentication:
+If `token.json` is missing or expired, initiate the interactive OAuth consent flow in your local browser:
 
 ```bash
 python -m src.main --auth
 ```
 
-### 4. Running Unit Tests
-Execute the automated test suite:
+### 4. Running Automated Unit Tests
+Execute the unit test suite verifying URL parsing and RapidFuzz deduplication clustering:
 
 ```bash
 python -m unittest discover -s tests
 ```
 
 ### 5. Running the Aggregator Locally
-Run a harvest looking back 24 hours (default):
+Run a daily news harvest looking back 24 hours (default):
 
 ```bash
 python -m src.main
@@ -292,21 +316,33 @@ Run a harvest looking back a custom window (e.g. 48 hours):
 python -m src.main --hours 48
 ```
 
+Run the local web server container test:
+
+```bash
+python -m src.app
+```
+
 ---
 
-## Cloud Deployment
+## Cloud Deployment (Google Cloud Run & Cloud Scheduler)
 
-Deploying the service to Google Cloud Run and configuring Cloud Scheduler is automated using the deployment script:
+Automated deployment to Google Cloud Platform is managed via the PowerShell deployment script:
 
 ```powershell
 .\deployment\deploy_cloud.ps1
 ```
 
-This script will:
-1. Enable necessary Google Cloud APIs (`run.googleapis.com`, `cloudbuild.googleapis.com`, etc.).
-2. Build the container via Cloud Build and deploy it to **Cloud Run** (`ai-news-aggregator-krjp`).
-3. Configure the Service Account (`ai-news-scheduler-sa`) with `roles/run.invoker` permissions.
-4. Set up the **Cloud Scheduler Job** (`ai-news-aggregator-daily-trigger`) to trigger the service daily at midnight (`0 0 * * *`) in the `Asia/Tokyo` timezone.
+You can also pass explicit parameters to override `.env` defaults:
+
+```powershell
+.\deployment\deploy_cloud.ps1 -ProjectId "your-gcp-project" -Region "us-central1" -ServiceName "ai-news-aggregator-krjp"
+```
+
+### What the Deployment Script Does:
+1. **API Enablement**: Enables `run.googleapis.com`, `cloudbuild.googleapis.com`, `artifactregistry.googleapis.com`, and `cloudscheduler.googleapis.com`.
+2. **Container Build & Deploy**: Uses Google Cloud Build to containerize the source tree with [Dockerfile](file:///c:/Users/hyunwookim/OneDrive%20-%20GAFS/%E3%83%89%E3%82%AD%E3%83%A5%E3%83%A1%E3%83%B3%E3%83%88/GitHub/AI-news-aggregator-KRJP/Dockerfile) and deploy it as a private, authenticated service to Cloud Run.
+3. **IAM Service Account Setup**: Creates or verifies the dedicated service account `ai-news-scheduler-sa` and binds the `roles/run.invoker` role to the Cloud Run service.
+4. **Cloud Scheduler Job**: Configures an HTTP POST recurring trigger (`0 0 * * *` in `Asia/Tokyo`) that sends an OIDC authorization token to invoke the Cloud Run endpoint.
 
 ---
 
@@ -318,4 +354,15 @@ You can manually trigger the deployed Cloud Run service through Cloud Scheduler 
 gcloud scheduler jobs run ai-news-aggregator-daily-trigger --location=us-central1
 ```
 
-Check service execution logs in the Google Cloud Console under the **Cloud Run logs tab** for `ai-news-aggregator-krjp`.
+To view live Cloud Run execution logs:
+
+```bash
+gcloud beta run services logs tail ai-news-aggregator-krjp --region=us-central1
+```
+
+---
+
+## License
+
+This project is licensed under the [MIT License](file:///c:/Users/hyunwookim/OneDrive%20-%20GAFS/ドキュメント/GitHub/AI-news-aggregator-KRJP/LICENSE).
+

@@ -1,83 +1,167 @@
-# AI News Aggregator - Cloud Deployment Script
+<#
+.SYNOPSIS
+    Deploys the AIFOD Daily AI News Aggregator service to Google Cloud Platform.
 
-# Load configuration from .env file
-if (-not (Test-Path ".env")) {
-    Write-Error ".env file not found. Please create it with required variables."
-    Write-Host "Required variables in .env:"
-    Write-Host "  GCP_PROJECT_ID=your-project-id"
-    exit 1
-}
+.DESCRIPTION
+    This automation script deploys the containerized Flask application to Google Cloud Run,
+    configures a dedicated IAM Service Account with invocation permissions, and schedules
+    a Cloud Scheduler job to invoke the service daily at midnight in the Asia/Tokyo timezone.
 
-# Read .env file and set variables
-Get-Content .env | ForEach-Object {
-    if ($_ -match '^\s*([^#][^=]*)\s*=\s*(.*)$') {
-        $name = $matches[1].Trim()
-        $value = $matches[2].Trim()
-        Set-Variable -Name $name -Value $value -Scope Script
+.PARAMETER ProjectId
+    The Google Cloud Platform project ID. If omitted, it will be loaded from the local .env file.
+
+.PARAMETER Region
+    The GCP region for Cloud Run and Cloud Scheduler deployment. Defaults to 'us-central1'.
+
+.PARAMETER ServiceName
+    The name of the Cloud Run service. Defaults to 'ai-news-aggregator-krjp'.
+
+.PARAMETER JobName
+    The name of the Cloud Scheduler job. Defaults to 'ai-news-aggregator-daily-trigger'.
+
+.PARAMETER Schedule
+    The cron expression defining the trigger frequency. Defaults to '0 0 * * *' (daily at midnight).
+
+.PARAMETER TimeZone
+    The timezone used for evaluating the schedule. Defaults to 'Asia/Tokyo'.
+
+.EXAMPLE
+    .\deployment\deploy_cloud.ps1
+    Deploys using configuration loaded from the local .env file.
+
+.EXAMPLE
+    .\deployment\deploy_cloud.ps1 -ProjectId "my-gcp-project" -Region "asia-northeast1"
+    Deploys to a specific project and region overriding .env defaults.
+#>
+
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory = $false, HelpMessage = "GCP Project ID")]
+    [string]$ProjectId,
+
+    [Parameter(Mandatory = $false, HelpMessage = "GCP Deployment Region")]
+    [string]$Region,
+
+    [Parameter(Mandatory = $false, HelpMessage = "Cloud Run Service Name")]
+    [string]$ServiceName,
+
+    [Parameter(Mandatory = $false, HelpMessage = "Cloud Scheduler Job Name")]
+    [string]$JobName,
+
+    [Parameter(Mandatory = $false, HelpMessage = "Cron Schedule Expression")]
+    [string]$Schedule,
+
+    [Parameter(Mandatory = $false, HelpMessage = "Timezone for Schedule")]
+    [string]$TimeZone
+)
+
+$ErrorActionPreference = "Stop"
+
+# ===========================================================================
+# 1. Configuration & Environment Ingestion
+# ===========================================================================
+
+# Load configuration from .env file if present
+$envPath = Join-Path $PSScriptRoot "..\" | Join-Path -ChildPath ".env"
+if (Test-Path $envPath) {
+    Write-Host "Loading configuration from: $envPath" -ForegroundColor DarkGray
+    Get-Content $envPath | ForEach-Object {
+        if ($_ -match '^\s*([^#][^=]*)\s*=\s*(.*)$') {
+            $name = $matches[1].Trim()
+            $value = $matches[2].Trim()
+            Set-Variable -Name "ENV_$name" -Value $value -Scope Script
+        }
     }
 }
 
-# Configuration (can be overridden in .env)
-if (-not $GCP_PROJECT_ID) {
-    Write-Error "GCP_PROJECT_ID not set in .env file"
+# Resolve parameter values: Explicit CLI argument > .env file > Hardcoded default
+$PROJECT_ID = if ($ProjectId) { $ProjectId } elseif ($ENV_GCP_PROJECT_ID) { $ENV_GCP_PROJECT_ID } else { $null }
+$REGION = if ($Region) { $Region } elseif ($ENV_GCP_REGION) { $ENV_GCP_REGION } else { "us-central1" }
+$SERVICE_NAME = if ($ServiceName) { $ServiceName } elseif ($ENV_SERVICE_NAME) { $ENV_SERVICE_NAME } else { "ai-news-aggregator-krjp" }
+$JOB_NAME = if ($JobName) { $JobName } elseif ($ENV_JOB_NAME) { $ENV_JOB_NAME } else { "ai-news-aggregator-daily-trigger" }
+$SCHEDULE = if ($Schedule) { $Schedule } elseif ($ENV_SCHEDULE) { $ENV_SCHEDULE } else { "0 0 * * *" }
+$TIMEZONE = if ($TimeZone) { $TimeZone } elseif ($ENV_TIMEZONE) { $ENV_TIMEZONE } else { "Asia/Tokyo" }
+
+if (-not $PROJECT_ID) {
+    Write-Error "GCP_PROJECT_ID is not provided and was not found in .env. Please supply -ProjectId or configure .env."
     exit 1
 }
-
-$PROJECT_ID = $GCP_PROJECT_ID
-$REGION = if ($GCP_REGION) { $GCP_REGION } else { "us-central1" }
-$SERVICE_NAME = if ($SERVICE_NAME) { $SERVICE_NAME } else { "ai-news-aggregator-krjp" }
-$JOB_NAME = if ($JOB_NAME) { $JOB_NAME } else { "ai-news-aggregator-daily-trigger" }
-$SCHEDULE = if ($SCHEDULE) { $SCHEDULE } else { "0 0 * * *" }  # Run daily at midnight
-$TIMEZONE = if ($TIMEZONE) { $TIMEZONE } else { "Asia/Tokyo" }
 
 Write-Host "Deploying AI News Aggregator to Google Cloud..." -ForegroundColor Green
+Write-Host "  Project:  $PROJECT_ID"
+Write-Host "  Region:   $REGION"
+Write-Host "  Service:  $SERVICE_NAME"
+Write-Host "  Job:      $JOB_NAME"
+Write-Host "  Schedule: $SCHEDULE ($TIMEZONE)"
+Write-Host ""
 
-# 1. Check if gcloud is installed
+# ===========================================================================
+# 2. Prerequisite & CLI Verification
+# ===========================================================================
 if (-not (Get-Command gcloud -ErrorAction SilentlyContinue)) {
-    Write-Error "Google Cloud SDK (gcloud) is not installed. Please install it first."
+    Write-Error "Google Cloud SDK (gcloud) is not installed or not available in PATH. Please install Google Cloud SDK."
     exit 1
 }
 
-# 2. Set Project
-Write-Host "Setting project to $PROJECT_ID..."
+# Set active project
+Write-Host "[Step 1/5] Setting active project to $PROJECT_ID..." -ForegroundColor Cyan
 gcloud config set project $PROJECT_ID
 
-# 3. Enable required services
-Write-Host "Enabling required APIs (Cloud Run, Cloud Build, Artifact Registry, Cloud Scheduler)..."
+# ===========================================================================
+# 3. Enable Required Google Cloud APIs
+# ===========================================================================
+Write-Host "[Step 2/5] Enabling required APIs (Cloud Run, Cloud Build, Artifact Registry, Cloud Scheduler)..." -ForegroundColor Cyan
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com cloudscheduler.googleapis.com
 
-# 4. Deploy to Cloud Run
-Write-Host "Deploying to Cloud Run..."
+# ===========================================================================
+# 4. Deploy Application to Cloud Run
+# ===========================================================================
+$workspaceRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\")).Path
+Write-Host "[Step 3/5] Deploying container from source ($workspaceRoot) to Cloud Run..." -ForegroundColor Cyan
 gcloud run deploy $SERVICE_NAME `
-    --source . `
+    --source $workspaceRoot `
     --region $REGION `
     --no-allow-unauthenticated `
     --quiet
 
-# Get the Service URL
+# Retrieve the assigned HTTPS endpoint
 $SERVICE_URL = gcloud run services describe $SERVICE_NAME --region $REGION --format 'value(status.url)'
-Write-Host "Service deployed at: $SERVICE_URL" -ForegroundColor Cyan
+if (-not $SERVICE_URL) {
+    Write-Error "Failed to retrieve the deployed service URL for $SERVICE_NAME."
+    exit 1
+}
+Write-Host "Service deployed successfully at: $SERVICE_URL" -ForegroundColor Green
 
-# 5. Create Service Account for Scheduler
+# ===========================================================================
+# 5. Configure Dedicated IAM Invoker Service Account
+# ===========================================================================
 $SA_NAME = "ai-news-scheduler-sa"
 $SA_EMAIL = "$SA_NAME@$PROJECT_ID.iam.gserviceaccount.com"
 
-Write-Host "Setting up Service Account for Scheduler..."
-# Check if SA exists
-if (-not (gcloud iam service-accounts list --filter="email:$SA_EMAIL" --format="value(email)")) {
-    gcloud iam service-accounts create $SA_NAME --display-name "AI News Aggregator Scheduler"
+Write-Host "[Step 4/5] Setting up Service Account ($SA_EMAIL) for Cloud Scheduler..." -ForegroundColor Cyan
+$existingSa = gcloud iam service-accounts list --filter="email:$SA_EMAIL" --format="value(email)"
+if (-not $existingSa) {
+    Write-Host "Creating service account: $SA_NAME..."
+    gcloud iam service-accounts create $SA_NAME --display-name "AI News Aggregator Scheduler Invoker"
+} else {
+    Write-Host "Service account $SA_NAME already exists."
 }
 
-# Grant permission to invoke Cloud Run
+# Grant run.invoker role on the Cloud Run service to the Service Account
+Write-Host "Granting roles/run.invoker to $SA_EMAIL..."
 gcloud run services add-iam-policy-binding $SERVICE_NAME `
     --region $REGION `
     --member="serviceAccount:$SA_EMAIL" `
     --role="roles/run.invoker"
 
-# 6. Create/Update Cloud Scheduler Job
-Write-Host "Configuring Cloud Scheduler..."
-if (gcloud scheduler jobs list --location=$REGION --filter="name:projects/$PROJECT_ID/locations/$REGION/jobs/$JOB_NAME" --format="value(name)") {
-    Write-Host "Updating existing job..."
+# ===========================================================================
+# 6. Configure Cloud Scheduler Recurring HTTP Trigger
+# ===========================================================================
+Write-Host "[Step 5/5] Configuring Cloud Scheduler recurring trigger..." -ForegroundColor Cyan
+$existingJob = gcloud scheduler jobs list --location=$REGION --filter="name:projects/$PROJECT_ID/locations/$REGION/jobs/$JOB_NAME" --format="value(name)"
+
+if ($existingJob) {
+    Write-Host "Updating existing Cloud Scheduler job ($JOB_NAME)..."
     gcloud scheduler jobs update http $JOB_NAME `
         --location=$REGION `
         --schedule="$SCHEDULE" `
@@ -85,9 +169,8 @@ if (gcloud scheduler jobs list --location=$REGION --filter="name:projects/$PROJE
         --uri=$SERVICE_URL `
         --http-method=POST `
         --oidc-service-account-email=$SA_EMAIL
-}
-else {
-    Write-Host "Creating new job..."
+} else {
+    Write-Host "Creating new Cloud Scheduler job ($JOB_NAME)..."
     gcloud scheduler jobs create http $JOB_NAME `
         --location=$REGION `
         --schedule="$SCHEDULE" `
@@ -97,5 +180,10 @@ else {
         --oidc-service-account-email=$SA_EMAIL
 }
 
-Write-Host "Deployment Complete!" -ForegroundColor Green
-Write-Host "Your agent will run daily at midnight ($TIMEZONE)."
+Write-Host ""
+Write-Host "===========================================================================" -ForegroundColor Green
+Write-Host " Deployment Complete!" -ForegroundColor Green
+Write-Host " Service:   $SERVICE_URL" -ForegroundColor Green
+Write-Host " Schedule:  $SCHEDULE ($TIMEZONE)" -ForegroundColor Green
+Write-Host " Invoker:   $SA_EMAIL" -ForegroundColor Green
+Write-Host "===========================================================================" -ForegroundColor Green
