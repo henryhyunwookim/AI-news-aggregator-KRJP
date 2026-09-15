@@ -11,6 +11,8 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.pytest_cache/
+tests/
 
 # Explicitly include these files (override defaults if needed)
 !credentials.json
