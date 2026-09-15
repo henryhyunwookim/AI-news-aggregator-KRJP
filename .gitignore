@@ -51,3 +51,8 @@ $RECYCLE.BIN/
 *.log
 tmp/
 temp/
+
+# Local tests & test artifacts
+tests/
+test/
+*.test.*
