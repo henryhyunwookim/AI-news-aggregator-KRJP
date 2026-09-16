@@ -23,8 +23,16 @@ ENV/
 .env.*.local
 *.pem
 *.key
+*.token
 credentials.json
 token.json
+service_account*.json
+
+# Dependencies
+node_modules/
+target/
+vendor/
+Pods/
 
 # Operating System Files
 # Windows
@@ -52,7 +60,20 @@ $RECYCLE.BIN/
 tmp/
 temp/
 
+# Scratch & ad-hoc scripts
+scratch/
+tmp_*.py
+debug_*.py
+
 # Local tests & test artifacts
 tests/
 test/
+__tests__/
+spec/
 *.test.*
+*.spec.*
+test_*.py
+*_test.py
+conftest.py
+test.db
+*.sqlite3

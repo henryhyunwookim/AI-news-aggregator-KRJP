@@ -212,6 +212,131 @@ flowchart TD
 
 ---
 
+## 📬 Sample Daily Digest Output Preview
+
+Below is an authentic visual preview of the daily email digest delivered directly to the practitioner's inbox via Gmail, alongside the underlying structured JSON schema produced by the two-stage Gemini synthesis engine.
+
+### 1. Visual Email Digest Preview
+
+<div align="center">
+  <table width="100%" style="max-width: 680px; border-collapse: collapse; border: 1px solid #cbd5e1; border-radius: 12px; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+    <thead>
+      <tr style="background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #8b5cf6 100%); color: #ffffff;">
+        <th style="padding: 24px 20px; text-align: center; border: none;">
+          <div style="font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; color: #93c5fd; font-weight: 700; margin-bottom: 6px;">AIFOD Daily Intelligence Briefing</div>
+          <div style="font-size: 24px; font-weight: 800; margin: 0 0 6px 0; color: #ffffff;">Korea &amp; Japan AI News</div>
+          <div style="font-size: 13px; font-weight: 400; color: #e0f2fe;">Selected and synthesized for international development relevance and policy strategy.</div>
+        </th>
+      </tr>
+      <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0; color: #475569; font-size: 12px;">
+        <th style="padding: 12px 16px; text-align: center; border: none;">
+          <strong>Evaluated:</strong> 248 articles &nbsp;|&nbsp; <strong>Selected:</strong> 5 stories &nbsp;|&nbsp; <strong>Country Balance:</strong> 🇰🇷 3 Korea &nbsp;·&nbsp; 🇯🇵 2 Japan &nbsp;|&nbsp; <strong>Date:</strong> Sep 16, 2026
+        </th>
+      </tr>
+    </thead>
+    <tbody style="background-color: #ffffff;">
+      <!-- Article 1 (South Korea) -->
+      <tr>
+        <td style="padding: 22px 24px; border-bottom: 1px solid #e2e8f0; text-align: left;">
+          <div style="margin-bottom: 8px;">
+            <span style="background-color: #e0f2fe; color: #0369a1; padding: 3px 10px; border-radius: 9999px; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;">🇰🇷 South Korea</span>
+            &nbsp;
+            <span style="color: #64748b; font-size: 12px;">Yonhap News &bull; Sep 16, 02:30 UTC</span>
+          </div>
+          <div style="font-size: 17px; font-weight: 700; margin: 6px 0 3px 0;">
+            <a href="https://en.yna.co.kr" target="_blank" style="color: #1e3a8a; text-decoration: none;">South Korea's MSIT and KOICA Launch $45M AI Capacity-Building Initiative for ASEAN Partner Nations</a>
+          </div>
+          <div style="font-size: 11px; color: #94a3b8; font-style: italic; margin-bottom: 12px;">
+            Original: 과기정통부-KOICA, 아세안 개도국 대상 600억원 규모 디지털 AI 역량강화 ODA 사업 착수
+          </div>
+          <p style="font-size: 13.5px; line-height: 1.6; color: #334155; margin: 0 0 14px 0;">
+            South Korea's Ministry of Science and ICT (MSIT), in partnership with KOICA, officially launched a 60 billion KRW ($45M) multi-year ODA initiative on September 15, 2026, aimed at establishing sovereign AI training centers across Indonesia, Vietnam, and the Philippines. The program deploys open-source Korean large language models fine-tuned on local Southeast Asian languages alongside cloud compute subsidies and technical faculty training. Pilot programs will commence in Q1 2027 in Jakarta and Hanoi to develop public sector AI services for healthcare and agricultural monitoring.
+          </p>
+          <!-- AIFOD Strategic Insight Card -->
+          <div style="background-color: #f5f3ff; border-left: 4px solid #8b5cf6; padding: 12px 14px; border-radius: 0 8px 8px 0; margin-bottom: 12px;">
+            <div style="color: #6d28d9; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">AIFOD Strategic Insight</div>
+            <div style="color: #4c1d95; font-size: 13px; line-height: 1.5;">
+              This initiative reflects a crucial shift from generic ICT hardware donations toward high-value sovereign AI capability building in the Global South. For AIFOD, the focus on local language fine-tuning and public sector use cases provides an actionable precedent for avoiding technological dependency on single-nation proprietary LLMs.
+            </div>
+          </div>
+          <!-- Practitioner Q&A Card -->
+          <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px 14px;">
+            <div style="color: #166534; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Practitioner Q&amp;A &amp; Stance</div>
+            <div style="font-size: 13px; color: #166534; margin-bottom: 6px;">
+              <strong>Q: How can developing nation partner agencies prevent compute infrastructure gifts from becoming unsustainable once foreign donor subsidies expire?</strong>
+            </div>
+            <div style="font-size: 13px; color: #14532d; line-height: 1.5; padding-left: 12px; border-left: 2px solid #86efac; font-style: italic;">
+              <strong>AIFOD Stance:</strong> Multilateral ODA agreements must incorporate tiered local financing roadmaps and prioritize energy-efficient, edge-deployable open-weights models rather than relying indefinitely on recurring high-overhead cloud computing grants.
+            </div>
+          </div>
+        </td>
+      </tr>
+      <!-- Article 2 (Japan) -->
+      <tr>
+        <td style="padding: 22px 24px; text-align: left;">
+          <div style="margin-bottom: 8px;">
+            <span style="background-color: #fee2e2; color: #b91c1c; padding: 3px 10px; border-radius: 9999px; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;">🇯🇵 Japan</span>
+            &nbsp;
+            <span style="color: #64748b; font-size: 12px;">Nikkei Asia &bull; Sep 16, 04:15 UTC</span>
+          </div>
+          <div style="font-size: 17px; font-weight: 700; margin: 6px 0 3px 0;">
+            <a href="https://asia.nikkei.com" target="_blank" style="color: #1e3a8a; text-decoration: none;">Japan's METI and JICA Partner on AI Governance Framework for Global South Industrial Cooperation</a>
+          </div>
+          <div style="font-size: 11px; color: #94a3b8; font-style: italic; margin-bottom: 12px;">
+            Original: 経済産業省とJICA、グローバルサウス向けAIガバナンス指針と産業応用支援枠組みを共同策定
+          </div>
+          <p style="font-size: 13.5px; line-height: 1.6; color: #334155; margin: 0 0 14px 0;">
+            Japan's Ministry of Economy, Trade and Industry (METI) and JICA unveiled a comprehensive AI governance guideline on September 15, 2026, specifically tailored for emerging economies across South and Southeast Asia. The framework provides risk-based safety standards aligned with the Hiroshima AI Process while establishing collaborative testing testbeds for SME manufacturing and disaster risk prediction. JICA has earmarked 18 billion JPY over three fiscal years to assist partner ministries in developing their own national regulatory sandboxes.
+          </p>
+          <!-- AIFOD Strategic Insight Card -->
+          <div style="background-color: #f5f3ff; border-left: 4px solid #8b5cf6; padding: 12px 14px; border-radius: 0 8px 8px 0; margin-bottom: 12px;">
+            <div style="color: #6d28d9; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">AIFOD Strategic Insight</div>
+            <div style="color: #4c1d95; font-size: 13px; line-height: 1.5;">
+              Aligning developing economy AI frameworks with the Hiroshima AI Process helps Global South economies participate in global AI supply chains without premature over-regulation. AIFOD practitioners should leverage these Japanese bilateral sandboxes to advocate for inclusive IP protections and local algorithmic fairness standards.
+            </div>
+          </div>
+          <!-- Practitioner Q&A Card -->
+          <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px 14px;">
+            <div style="color: #166534; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Practitioner Q&amp;A &amp; Stance</div>
+            <div style="font-size: 13px; color: #166534; margin-bottom: 6px;">
+              <strong>Q: How can developing nation regulators balance rigorous AI risk compliance with urgent local economic innovation demands?</strong>
+            </div>
+            <div style="font-size: 13px; color: #14532d; line-height: 1.5; padding-left: 12px; border-left: 2px solid #86efac; font-style: italic;">
+              <strong>AIFOD Stance:</strong> Regulators should adopt agile sandbox models that grant provisional compliance exemptions to high-impact developmental use cases (such as agricultural AI and micro-finance credit scoring) while retaining strict safeguards for citizen biometric data.
+            </div>
+          </div>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+### 2. Structured JSON Output Contract (Stage 2 AI Synthesis)
+
+The Gemini Stage 2 reasoning engine outputs a strictly validated JSON structure consumed by [src/email_sender.py](file:///c:/Users/hyunwookim/OneDrive%20-%20GAFS/%E3%83%89%E3%82%AD%E3%83%A5%E3%83%A1%E3%83%B3%E3%83%88/GitHub/AI-news-aggregator-KRJP/src/email_sender.py) to compile the HTML template:
+
+```json
+{
+  "articles": [
+    {
+      "candidate_index": 0,
+      "country": "KR",
+      "original_title": "과기정통부-KOICA, 아세안 개도국 대상 600억원 규모 디지털 AI 역량강화 ODA 사업 착수",
+      "source": "Yonhap News",
+      "link": "https://en.yna.co.kr/view/AEN20260916001200320",
+      "published": "2026-09-16T02:30:00+00:00",
+      "english_title": "South Korea's MSIT and KOICA Launch $45M AI Capacity-Building Initiative for ASEAN Partner Nations",
+      "english_summary": "South Korea's Ministry of Science and ICT (MSIT), in partnership with KOICA, officially launched a 60 billion KRW ($45M) multi-year ODA initiative on September 15, 2026, aimed at establishing sovereign AI training centers across Indonesia, Vietnam, and the Philippines. The program deploys open-source Korean large language models fine-tuned on local Southeast Asian languages alongside cloud compute subsidies and technical faculty training. Pilot programs will commence in Q1 2027 in Jakarta and Hanoi to develop public sector AI services for healthcare and agricultural monitoring.",
+      "aifod_insight": "This initiative reflects a crucial shift from generic ICT hardware donations toward high-value sovereign AI capability building in the Global South. For AIFOD, the focus on local language fine-tuning and public sector use cases provides an actionable precedent for avoiding technological dependency on single-nation proprietary LLMs.",
+      "aifod_question": "How can developing nation partner agencies prevent compute infrastructure gifts from becoming unsustainable once foreign donor subsidies expire?",
+      "aifod_suggested_answer": "Multilateral ODA agreements must incorporate tiered local financing roadmaps and prioritize energy-efficient, edge-deployable open-weights models rather than relying indefinitely on recurring high-overhead cloud computing grants."
+    }
+  ]
+}
+```
+
+---
+
 ## Project Structure
 
 ```text
