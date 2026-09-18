@@ -10,4 +10,6 @@ feedparser
 requests
 rapidfuzz
 googlenewsdecoder
+google-cloud-secret-manager>=2.16.0
+google-cloud-storage>=2.10.0
 

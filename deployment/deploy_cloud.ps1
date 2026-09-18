@@ -108,10 +108,27 @@ Write-Host "[Step 1/5] Setting active project to $PROJECT_ID..." -ForegroundColo
 gcloud config set project $PROJECT_ID
 
 # ===========================================================================
-# 3. Enable Required Google Cloud APIs
+# 3. Enable Required Google Cloud APIs & GCS Bucket Setup
 # ===========================================================================
-Write-Host "[Step 2/5] Enabling required APIs (Cloud Run, Cloud Build, Artifact Registry, Cloud Scheduler)..." -ForegroundColor Cyan
-gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com cloudscheduler.googleapis.com
+Write-Host "[Step 2/5] Enabling required APIs (Cloud Run, Cloud Build, Artifact Registry, Cloud Scheduler, Secret Manager, Cloud Storage)..." -ForegroundColor Cyan
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com cloudscheduler.googleapis.com secretmanager.googleapis.com storage.googleapis.com
+
+$BUCKET_NAME = "$PROJECT_ID-ai-news-data"
+Write-Host "Ensuring Cloud Storage bucket gs://$BUCKET_NAME exists..." -ForegroundColor Cyan
+$bucketCheck = gcloud storage buckets describe "gs://$BUCKET_NAME" 2>&1
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Creating Cloud Storage bucket gs://$BUCKET_NAME in $REGION..."
+    gcloud storage buckets create "gs://$BUCKET_NAME" --location=$REGION
+} else {
+    Write-Host "Cloud Storage bucket gs://$BUCKET_NAME already exists."
+}
+
+# Grant Secret Manager and Cloud Storage access to the default Cloud Run runtime service account
+$PROJECT_NUMBER = gcloud projects describe $PROJECT_ID --format="value(projectNumber)"
+$COMPUTE_SA = "$PROJECT_NUMBER-compute@developer.gserviceaccount.com"
+Write-Host "Granting Secret Manager Secret Accessor and Storage Object User to $COMPUTE_SA..." -ForegroundColor Cyan
+gcloud projects add-iam-policy-binding $PROJECT_ID --member="serviceAccount:$COMPUTE_SA" --role="roles/secretmanager.secretAccessor" --quiet
+gcloud projects add-iam-policy-binding $PROJECT_ID --member="serviceAccount:$COMPUTE_SA" --role="roles/storage.objectUser" --quiet
 
 # ===========================================================================
 # 4. Deploy Application to Cloud Run
@@ -121,6 +138,7 @@ Write-Host "[Step 3/5] Deploying container from source ($workspaceRoot) to Cloud
 gcloud run deploy $SERVICE_NAME `
     --source $workspaceRoot `
     --region $REGION `
+    --set-env-vars "GCP_PROJECT_ID=$PROJECT_ID,GCP_REGION=$REGION,SERVICE_NAME=$SERVICE_NAME,GCS_BUCKET_NAME=$BUCKET_NAME" `
     --no-allow-unauthenticated `
     --quiet
 
@@ -131,6 +149,7 @@ if (-not $SERVICE_URL) {
     exit 1
 }
 Write-Host "Service deployed successfully at: $SERVICE_URL" -ForegroundColor Green
+
 
 # ===========================================================================
 # 5. Configure Dedicated IAM Invoker Service Account

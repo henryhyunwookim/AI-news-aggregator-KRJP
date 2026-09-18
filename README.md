@@ -286,114 +286,111 @@ The Gemini Stage 2 reasoning engine outputs a strictly validated JSON structure 
 
 ---
 
+---
+
+## Multi-PC Cloud-Native Architecture
+
+This repository is built on a fully portable, multi-PC cloud-native architecture. Developers and automated pipelines can run the project on ANY workstation or Cloud Run container without creating or maintaining local credential files or `.env` files.
+
+### Cloud Service Mapping
+
+| Layer | Google Cloud Service | Canonical Resource | Resolution & Portability Strategy |
+| :--- | :--- | :--- | :--- |
+| **API Keys & Secrets** | **Secret Manager** | `secrets/gemini-api-key/versions/latest` | Resolved via Python SDK on Cloud Run; auto-fallback to `gcloud secrets versions access` CLI on local workstations. |
+| **OAuth 2.0 Tokens** | **Secret Manager** | `secrets/gmail-agent-token/versions/latest` | Resolved from Secret Manager; refreshed in-memory; updated in Secret Manager automatically; cached only in OS temp dir (`tempfile.gettempdir()`). |
+| **OAuth Client Config** | **Secret Manager** | `secrets/gmail-oauth-credentials/versions/latest` | Loaded directly from Secret Manager when interactive browser authorization is needed. |
+| **Persistent State** | **Cloud Storage (GCS)** | `gs://<project-id>-ai-news-data/ai-news-aggregator-krjp/state.json` | Single source of truth for delivered article URLs, hashes, and run counters; local cache strictly in OS temp directory. |
+| **Operational & Audit Logs** | **GCS & Cloud Logging** | `gs://<project-id>-ai-news-data/ai-news-aggregator-krjp/run_log.json` + `stdout` | Decoupled from memory/state; structured JSON logs emitted to `stdout` for streaming to Google Cloud Logging. |
+
+---
+
 ## Project Structure
 
 ```text
 AI-news-aggregator-KRJP/
 ├── src/                               # Application Package
 │   ├── __init__.py                    # Package initialization
-│   ├── app.py                         # Flask web service entry point for Cloud Run
-│   ├── auth.py                        # Gmail OAuth authentication helper & token refresh
-│   ├── config.py                      # Configuration variables, search queries, API keys
+│   ├── app.py                         # Flask web service entry point for Cloud Run (?hours=24&dry_run=true)
+│   ├── auth.py                        # Dual-mode Secret Manager Gmail OAuth loader & refresh
+│   ├── config.py                      # Secret Manager resolution, GCS configuration & search queries
 │   ├── email_sender.py                # HTML email generator & Gmail REST API sender
 │   ├── llm_filter.py                  # Two-stage candidate selection, enrichment & synthesis
-│   ├── main.py                        # Orchestration pipeline & CLI entrypoint
+│   ├── main.py                        # Orchestration pipeline, CLI entrypoint & --dry-run support
+│   ├── memory.py                      # GCS state persistence & decoupled operational run logging
 │   └── rss_parser.py                  # Dual-engine RSS fetcher, RapidFuzz clustering, enrichment
-├── tests/                             # Automated Unit Tests
-│   ├── __init__.py
-│   └── test_rss_parser.py             # Unit tests for URL cleaning, title normalization & clustering
 ├── deployment/
-│   └── deploy_cloud.ps1               # Advanced PowerShell script to build & deploy to GCP
-├── .env                               # Local environment configuration (git-ignored)
-├── .env.example                       # Template for environment configuration
+│   ├── deploy_cloud.ps1               # Automated deployment script (APIs, GCS bucket, IAM, Cloud Run, Scheduler)
+│   └── sync_secrets.py                # One-shot utility to push local credentials to Secret Manager
+├── .env.example                       # Cloud architecture environment template
 ├── .gcloudignore                      # Cloud Build ignore rules
-├── .gitignore                         # Comprehensive Git ignore rules
+├── .gitignore                         # Strict Git ignore rules ensuring zero credential/state pollution
 ├── Dockerfile                         # Production container definition (python:3.11-slim)
 ├── LICENSE                            # MIT License definition
-├── requirements.txt                   # Python dependencies
+├── requirements.txt                   # Python dependencies (includes google-cloud-secret-manager & storage)
 └── README.md                          # Project documentation (this file)
 ```
 
 Key files:
-- [src/main.py](src/main.py): Primary entry point coordinating authentication, ingestion, filtering, and dispatch.
-- [src/rss_parser.py](src/rss_parser.py): RSS parsing, multi-engine fallback, RapidFuzz deduplication, and page scraping.
-- [src/llm_filter.py](src/llm_filter.py): Two-stage Gemini prompt orchestration, country balancing, and guardrails.
-- [src/email_sender.py](src/email_sender.py): Modern Plus Jakarta Sans responsive HTML email builder and Gmail API sender.
-- [deployment/deploy_cloud.ps1](deployment/deploy_cloud.ps1): Automated deployment script for Cloud Run, IAM invoker service account, and Cloud Scheduler.
+- [src/config.py](src/config.py): Implements `resolve_cloud_secret` and `save_cloud_secret` with dual-mode fallback (SDK + `gcloud` CLI).
+- [src/auth.py](src/auth.py): Resolves Gmail OAuth tokens from Secret Manager without requiring local `token.json` or `credentials.json`.
+- [src/memory.py](src/memory.py): Persists delivery state (`state.json`) and audit logs (`run_log.json`) to Google Cloud Storage.
+- [src/main.py](src/main.py): Primary orchestrator supporting lookback windows, state deduplication, and `--dry-run`.
+- [deployment/sync_secrets.py](deployment/sync_secrets.py): One-shot utility to synchronize local tokens or keys to Secret Manager.
+- [deployment/deploy_cloud.ps1](deployment/deploy_cloud.ps1): Complete infrastructure deployment script.
 
 ---
 
-## Configuration & Environment Variables
+## Multi-PC Zero-Setup & Execution
 
-Create a local `.env` file based on [.env.example](.env.example):
+### 1. Prerequisites (Any Machine)
+Clone the repository on any computer. You only need:
+- Python 3.11+
+- Google Cloud SDK (`gcloud`)
 
-| Variable | Description | Default / Example | Required |
-|---|---|---|---|
-| `GEMINI_API_KEY` | Google Gemini Generative AI API Key | `AIzaSy...` | Yes |
-| `GCP_PROJECT_ID` | Google Cloud Project ID for deployment | `your-gcp-project-id` | Yes (for deployment) |
-| `GCP_REGION` | Cloud Run and Scheduler region | `us-central1` | No |
-| `SERVICE_NAME` | Cloud Run service name | `ai-news-aggregator-krjp` | No |
-| `JOB_NAME` | Cloud Scheduler job identifier | `ai-news-aggregator-daily-trigger` | No |
-| `SCHEDULE` | Cron expression for daily trigger | `0 0 * * *` (midnight) | No |
-| `TIMEZONE` | Timezone for report date and scheduler | `Asia/Tokyo` | No |
-| `RECIPIENT_EMAIL` | Target email for daily digest | `your_email@example.com` | Yes |
-| `RECIPIENT_NAME` | Target recipient name in digest footer | `AIFOD Practitioner` | No |
+Authenticate your workstation once:
+```bash
+gcloud auth login
+gcloud config set project YOUR_GCP_PROJECT_ID
+```
 
-OAuth 2.0 Credentials:
-- `credentials.json`: OAuth Client ID credentials file downloaded from Google Cloud Console (APIs & Services > Credentials).
-- `token.json`: Generated upon successful authentication containing access and refresh tokens.
-
----
-
-## Local Setup & Execution
-
-### 1. Installation
-Clone the repository and install dependencies (Python 3.11+ recommended):
-
+Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Configuration Setup
-Copy `.env.example` to `.env` and fill in your keys:
+### 2. Zero-Setup Local Dry-Run
+Run the complete pipeline end-to-end with **ZERO** local `.env`, `credentials.json`, or `token.json` files:
 
 ```bash
-cp .env.example .env
+# Execute dry-run (fetches news, clusters, runs Gemini, verifies HTML compilation without sending email)
+python -m src.main --dry-run
 ```
 
-Ensure `credentials.json` is placed in the project root.
+All credentials (`gemini-api-key`, `gmail-agent-token`, `gmail-oauth-credentials`) are pulled on-the-fly from Secret Manager!
 
-### 3. Interactive Authentication
-If `token.json` is missing or expired, initiate the interactive OAuth consent flow in your local browser:
-
-```bash
-python -m src.main --auth
-```
-
-### 4. Running Automated Unit Tests
-Execute the unit test suite verifying URL parsing and RapidFuzz deduplication clustering:
-
-```bash
-python -m unittest discover -s tests
-```
-
-### 5. Running the Aggregator Locally
-Run a daily news harvest looking back 24 hours (default):
+### 3. Running a Live Harvest Locally
+To run a live daily news harvest and send the digest email:
 
 ```bash
 python -m src.main
 ```
 
-Run a harvest looking back a custom window (e.g. 48 hours):
-
+Or specify a custom lookback window:
 ```bash
 python -m src.main --hours 48
 ```
 
-Run the local web server container test:
-
+### 4. Interactive Re-Authentication (If Refresh Token Revoked)
+If OAuth tokens need to be generated or renewed:
 ```bash
-python -m src.app
+python -m src.main --auth
+```
+This automatically retrieves OAuth client secrets from Secret Manager, opens the browser consent screen, and pushes the newly minted token directly into Secret Manager.
+
+### 5. Syncing Local Credentials to Secret Manager
+If you ever have local credentials or keys you wish to upload in one shot:
+```bash
+python deployment/sync_secrets.py
 ```
 
 ---
@@ -403,20 +400,15 @@ python -m src.app
 Automated deployment to Google Cloud Platform is managed via the PowerShell deployment script:
 
 ```powershell
-.\deployment\deploy_cloud.ps1
-```
-
-You can also pass explicit parameters to override `.env` defaults:
-
-```powershell
-.\deployment\deploy_cloud.ps1 -ProjectId "your-gcp-project" -Region "us-central1" -ServiceName "ai-news-aggregator-krjp"
+.\deployment\deploy_cloud.ps1 -ProjectId "YOUR_GCP_PROJECT_ID"
 ```
 
 ### What the Deployment Script Does:
-1. **API Enablement**: Enables `run.googleapis.com`, `cloudbuild.googleapis.com`, `artifactregistry.googleapis.com`, and `cloudscheduler.googleapis.com`.
-2. **Container Build & Deploy**: Uses Google Cloud Build to containerize the source tree with [Dockerfile](Dockerfile) and deploy it as a private, authenticated service to Cloud Run.
-3. **IAM Service Account Setup**: Creates or verifies the dedicated service account `ai-news-scheduler-sa` and binds the `roles/run.invoker` role to the Cloud Run service.
-4. **Cloud Scheduler Job**: Configures an HTTP POST recurring trigger (`0 0 * * *` in `Asia/Tokyo`) that sends an OIDC authorization token to invoke the Cloud Run endpoint.
+1. **API Enablement**: Enables `run.googleapis.com`, `cloudbuild.googleapis.com`, `artifactregistry.googleapis.com`, `cloudscheduler.googleapis.com`, `secretmanager.googleapis.com`, and `storage.googleapis.com`.
+2. **GCS Bucket Setup**: Automatically provisions `gs://<project-id>-ai-news-data` for state and log persistence.
+3. **IAM Permissions**: Grants `roles/secretmanager.secretAccessor` and `roles/storage.objectUser` to the Cloud Run runtime service account.
+4. **Container Build & Deploy**: Builds and deploys the container from source to Cloud Run as a private service.
+5. **Scheduler Job**: Configures Cloud Scheduler recurring trigger (`0 0 * * *` in `Asia/Tokyo`) with OIDC authentication to invoke Cloud Run daily.
 
 ---
 
@@ -433,6 +425,7 @@ To view live Cloud Run execution logs:
 ```bash
 gcloud beta run services logs tail ai-news-aggregator-krjp --region=us-central1
 ```
+
 
 ---
 

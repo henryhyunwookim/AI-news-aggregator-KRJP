@@ -45,19 +45,24 @@ def run_aggregator() -> tuple[Response, int]:
         tuple[Response, int]: JSON response payload with HTTP 200 on success or 500 on error.
     """
     try:
-        # Step 1: Parse lookback hours from query parameter
+        # Step 1: Parse lookback hours and dry_run from query parameters
         hours: int = request.args.get("hours", default=24, type=int)
+        dry_run_param: str | None = request.args.get("dry_run")
+        dry_run: bool = dry_run_param is not None and dry_run_param.lower() in ("true", "1", "yes")
 
         # Step 2: Allow JSON request body override if present
         if request.is_json:
             data: dict[str, Any] | None = request.get_json(silent=True)
-            if data and "hours" in data:
-                hours = int(data["hours"])
+            if data:
+                if "hours" in data:
+                    hours = int(data["hours"])
+                if "dry_run" in data:
+                    dry_run = bool(data["dry_run"])
 
-        print(f"[WebService] Received trigger request. Initiating harvest (lookback: {hours}h)...")
+        print(f"[WebService] Received trigger request (lookback: {hours}h, dry_run: {dry_run})...")
 
         # Step 3: Execute the core orchestration pipeline
-        result: dict[str, Any] = main(hours_back=hours)
+        result: dict[str, Any] = main(hours_back=hours, dry_run=dry_run)
 
         if result and result.get("success"):
             return jsonify({
