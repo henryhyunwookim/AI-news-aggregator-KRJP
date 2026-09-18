@@ -135,12 +135,21 @@ gcloud projects add-iam-policy-binding $PROJECT_ID --member="serviceAccount:$COM
 # ===========================================================================
 $workspaceRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\")).Path
 Write-Host "[Step 3/5] Deploying container from source ($workspaceRoot) to Cloud Run..." -ForegroundColor Cyan
-gcloud run deploy $SERVICE_NAME `
-    --source $workspaceRoot `
-    --region $REGION `
-    --set-env-vars "GCP_PROJECT_ID=$PROJECT_ID,GCP_REGION=$REGION,SERVICE_NAME=$SERVICE_NAME,GCS_BUCKET_NAME=$BUCKET_NAME" `
-    --no-allow-unauthenticated `
-    --quiet
+Push-Location $workspaceRoot
+try {
+    gcloud run deploy $SERVICE_NAME `
+        --source . `
+        --region $REGION `
+        --set-env-vars "GCP_PROJECT_ID=$PROJECT_ID,GCP_REGION=$REGION,SERVICE_NAME=$SERVICE_NAME,GCS_BUCKET_NAME=$BUCKET_NAME,GEMINI_MODEL=gemini-3.8-flash" `
+        --no-allow-unauthenticated `
+        --quiet
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "gcloud run deploy failed with exit code $LASTEXITCODE."
+        exit $LASTEXITCODE
+    }
+} finally {
+    Pop-Location
+}
 
 # Retrieve the assigned HTTPS endpoint
 $SERVICE_URL = gcloud run services describe $SERVICE_NAME --region $REGION --format 'value(status.url)'
