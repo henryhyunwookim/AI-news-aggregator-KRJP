@@ -50,9 +50,9 @@ flowchart TD
     %% AI Intelligence & Content Enrichment Layer
     %% -------------------------------------------------------------
     subgraph AILayer ["4. Two-Stage AI Reasoning & Enrichment Layer (src/llm_filter.py)"]
-        STAGE1["🎯 Stage 1: Country-Balanced Candidate Selection<br/>Pick Top 3 KR & Top 3 JP Candidates"]
+        STAGE1["🎯 Stage 1: Country-Balanced Candidate Selection<br/>Pick Top 10 KR & Top 10 JP Candidates from ~70 Headline Pool"]
         ENRICHER["🌐 Real Web Content Enrichment<br/>• <code>googlenewsdecoder</code> (Unwrap CBMi Redirects)<br/>• Fetch <code>og:description</code> & Lead Paragraphs"]
-        STAGE2["✨ Stage 2: Deep Synthesis (Google Gemini API)<br/>• Model: <code>gemini-2.5-flash-lite</code><br/>• Country Balance: 2-3 KR and 2-3 JP (Total 5)<br/>• Rich Factual Summaries, Strategic Insights & Q&A"]
+        STAGE2["✨ Stage 2: Deep Synthesis (Google Gemini API)<br/>• Model: <code>gemini-3.8-flash</code><br/>• Country Balance: 2-3 KR and 2-3 JP (Total 5)<br/>• Rich Factual Summaries, Strategic Insights & Q&A"]
         GUARDRAIL["🛡️ Post-LLM Deduplication Guardrail<br/>Verify Cross-Article Title Similarity < 55%"]
     end
 
@@ -116,26 +116,26 @@ flowchart TD
     subgraph InputStage ["1. Deduplicated Event Pool (src/rss_parser.py)"]
         RAW_FEED["📥 400+ Raw Articles Fetched"]
         FUZZ_CLUSTER["🧹 RapidFuzz Title Clustering<br/>Group identical press releases into single events"]
-        SPLIT_POOLS["👥 Split into Country Pools<br/>• KR Pool (Top 35 Date-Sorted)<br/>• JP Pool (Top 35 Date-Sorted)"]
+        SPLIT_POOLS["👥 Initial Pool: Up to 70 Headlines<br/>• KR Pool (Top 35 Date-Sorted)<br/>• JP Pool (Top 35 Date-Sorted)"]
     end
 
     %% Stage 1 Candidate Selection
     subgraph Stage1 ["2. Stage 1: Candidate Selection (Gemini API)"]
         S1_PROMPT["🧠 Candidate Selection Prompt<br/>Filter for AIFOD Mission Alignment & Thematic Diversity"]
-        S1_SELECT["🎯 Select Top 6 Candidates<br/>(Exactly 3 from KR + 3 from JP)"]
+        S1_SELECT["🎯 Select Top 20 Candidates<br/>(10 from KR + 10 from JP)"]
     end
 
     %% Web Content Enrichment
     subgraph EnrichmentStage ["3. Real Web Content & Canonical URL Enrichment"]
         DECODER["🔓 <code>googlenewsdecoder</code><br/>Unwrap Google News CBMi redirects to canonical publisher URLs"]
         FETCHER["🌐 Parallel Metadata Extraction<br/>Extract <code>og:description</code>, meta descriptions & lead paragraphs (~1000 chars)"]
-        ENRICHED_DATA["📑 Enriched Candidate Payloads (6 Articles)"]
+        ENRICHED_DATA["📑 Enriched Candidate Payloads (20 Articles)"]
     end
 
     %% Stage 2 Deep Synthesis
     subgraph Stage2 ["4. Stage 2: Deep Factual Synthesis (Gemini API)"]
         S2_PROMPT["🧠 Deep Synthesis Prompt<br/>Enforce country balance (2-3 KR, 2-3 JP) & rich factual density"]
-        S2_OUTPUT["📋 Structured JSON Generation:<br/>• english_title<br/>• english_summary (3-4 dense factual sentences)<br/>• aifod_insight (Strategic implications for Global South)<br/>• aifod_question (Critical policy dilemma)<br/>• aifod_suggested_answer (Actionable stance)"]
+        S2_OUTPUT["📋 Structured JSON Generation (Final 5 Stories):<br/>• english_title<br/>• english_summary (3-4 dense factual sentences)<br/>• aifod_insight (Strategic implications for Global South)<br/>• aifod_question (Critical policy dilemma)<br/>• aifod_suggested_answer (Actionable stance)"]
     end
 
     %% Post-Guardrail
@@ -179,7 +179,7 @@ flowchart TD
     subgraph DedupPipeline ["3. Algorithmic Deduplication & Clustering"]
         TIME_FILTER["⏱️ Time Window Filter (<= hours_back)"]
         URL_DEDUP["🔗 Exact URL Deduplication (seen_urls set)"]
-        NORM_TITLE["🔤 Title Normalization<br/>Strip media tags (- 로이슈, | 연합뉴스), brackets, punctuation"]
+        NORM_TITLE["🔤 Title Normalization<br/>Strip media tags (- 로이터, | 연합뉴스), brackets, punctuation"]
         CLUSTER["📊 RapidFuzz Token-Set Clustering (sim >= 65%)<br/>Cluster identical press releases & pick longest description"]
         OUTPUT_BUFFER["📁 Deduplicated Event Stories Buffer"]
     end
@@ -201,8 +201,10 @@ flowchart TD
 - **Algorithmic Fuzzy Deduplication**: Eliminates identical press releases across multiple news outlets using RapidFuzz token-set title clustering (`token_set_ratio >= 65`). Merges duplicate coverage into a single best-quality article before AI evaluation.
 - **Article Content Enrichment**: Resolves Google News `CBMi...` redirects to canonical publisher URLs via `googlenewsdecoder` and fetches real article metadata (`og:description`, `meta[name="description"]`, and lead paragraphs).
 - **Two-Stage Country-Balanced AI Pipeline**:
-  - **Stage 1**: Selects 3 candidate stories from South Korea and 3 from Japan.
-  - **Stage 2**: Generates a strictly balanced 5-article digest (**2-3 from Korea and 2-3 from Japan**) using rich source text.
+  - **Initial Headline Pool**: Ingests an initial pool of up to 70 deduplicated headlines (up to 35 date-sorted headlines from South Korea and 35 from Japan) evaluated for AIFOD mission relevance.
+  - **Stage 1**: Selects 10 candidate stories from South Korea and 10 from Japan (total 20 candidates, configurable via `STAGE1_CANDIDATES_PER_COUNTRY`).
+  - **Content Enrichment**: Enriches all 20 candidates concurrently with canonical publisher URLs, `og:description`, and full lead paragraphs.
+  - **Stage 2**: Evaluates enriched texts and generates a strictly balanced 5-article digest (**2-3 from Korea and 2-3 from Japan**) using rich source text.
 - **High-Density AIFOD Deliverables**:
   - **English Summary**: 3-4 dense, factual sentences naming specific actors, partner countries, dates, venues, and policies.
   - **AIFOD Strategic Insight**: Analytical "So What?" highlighting implications for the Global South without restating summary facts.
@@ -214,9 +216,7 @@ flowchart TD
 
 ## 📬 Sample Daily Digest Output Preview
 
-Below is an authentic visual preview of the daily email digest delivered directly to the practitioner's inbox via Gmail, alongside the underlying structured JSON schema produced by the two-stage Gemini synthesis engine.
-
-### 1. Visual Email Digest Preview
+Below is an authentic visual preview of the daily email digest delivered directly to the practitioner's inbox via Gmail:
 
 > [!NOTE]
 > ### 📬 AIFOD Daily Intelligence Briefing — Korea & Japan AI News
@@ -260,32 +260,6 @@ Japan's Ministry of Economy, Trade and Industry (METI) and JICA unveiled a compr
 > 
 > **AIFOD Stance:** Regulators should adopt agile sandbox models that grant provisional compliance exemptions to high-impact developmental use cases (such as agricultural AI and micro-finance credit scoring) while retaining strict safeguards for citizen biometric data.
 
-### 2. Structured JSON Output Contract (Stage 2 AI Synthesis)
-
-The Gemini Stage 2 reasoning engine outputs a strictly validated JSON structure consumed by [src/email_sender.py](src/email_sender.py) to compile the HTML template:
-
-```json
-{
-  "articles": [
-    {
-      "candidate_index": 0,
-      "country": "KR",
-      "original_title": "과기정통부-KOICA, 아세안 개도국 대상 600억원 규모 디지털 AI 역량강화 ODA 사업 착수",
-      "source": "Yonhap News",
-      "link": "https://en.yna.co.kr/view/AEN20260916001200320",
-      "published": "2026-09-16T02:30:00+00:00",
-      "english_title": "South Korea's MSIT and KOICA Launch $45M AI Capacity-Building Initiative for ASEAN Partner Nations",
-      "english_summary": "South Korea's Ministry of Science and ICT (MSIT), in partnership with KOICA, officially launched a 60 billion KRW ($45M) multi-year ODA initiative on September 15, 2026, aimed at establishing sovereign AI training centers across Indonesia, Vietnam, and the Philippines. The program deploys open-source Korean large language models fine-tuned on local Southeast Asian languages alongside cloud compute subsidies and technical faculty training. Pilot programs will commence in Q1 2027 in Jakarta and Hanoi to develop public sector AI services for healthcare and agricultural monitoring.",
-      "aifod_insight": "This initiative reflects a crucial shift from generic ICT hardware donations toward high-value sovereign AI capability building in the Global South. For AIFOD, the focus on local language fine-tuning and public sector use cases provides an actionable precedent for avoiding technological dependency on single-nation proprietary LLMs.",
-      "aifod_question": "How can developing nation partner agencies prevent compute infrastructure gifts from becoming unsustainable once foreign donor subsidies expire?",
-      "aifod_suggested_answer": "Multilateral ODA agreements must incorporate tiered local financing roadmaps and prioritize energy-efficient, edge-deployable open-weights models rather than relying indefinitely on recurring high-overhead cloud computing grants."
-    }
-  ]
-}
-```
-
----
-
 ---
 
 ## Multi-PC Cloud-Native Architecture
@@ -301,6 +275,23 @@ This repository is built on a fully portable, multi-PC cloud-native architecture
 | **OAuth Client Config** | **Secret Manager** | `secrets/gmail-oauth-credentials/versions/latest` | Loaded directly from Secret Manager when interactive browser authorization is needed. |
 | **Persistent State** | **Cloud Storage (GCS)** | `gs://<project-id>-ai-news-data/ai-news-aggregator-krjp/state.json` | Single source of truth for delivered article URLs, hashes, and run counters; local cache strictly in OS temp directory. |
 | **Operational & Audit Logs** | **GCS & Cloud Logging** | `gs://<project-id>-ai-news-data/ai-news-aggregator-krjp/run_log.json` + `stdout` | Decoupled from memory/state; structured JSON logs emitted to `stdout` for streaming to Google Cloud Logging. |
+
+### Environment Variables & Local Overrides
+
+In this cloud-native architecture, environment variables can be provided via Google Cloud Run environment settings or an optional local `.env` file (see [.env.example](.env.example)):
+
+| Variable | Description | Default | Source / Fallback |
+| :--- | :--- | :--- | :--- |
+| `GCP_PROJECT_ID` | Google Cloud Platform project ID | Auto-resolved | Resolves from `gcloud config get-value project` |
+| `GCP_REGION` | Cloud Run and Scheduler region | `us-central1` | Environment or CLI parameter |
+| `SERVICE_NAME` | Cloud Run service name | `ai-news-aggregator-krjp` | Environment or CLI parameter |
+| `JOB_NAME` | Cloud Scheduler job name | `ai-news-aggregator-daily-trigger` | Environment or CLI parameter |
+| `GEMINI_MODEL` | Google Gemini model name | `gemini-3.8-flash` | Configurable model identifier |
+| `STAGE1_CANDIDATES_PER_COUNTRY` | Candidates selected per country in Stage 1 | `10` | 10 KR + 10 JP = 20 total candidates |
+| `GEMINI_API_KEY` | Gemini API authentication key | Secret Manager | Secret `gemini-api-key` |
+| `RECIPIENT_EMAIL` | Target email address for daily digest | Secret Manager | Secret `ai-news-recipient-email` |
+| `RECIPIENT_NAME` | Recipient name for digest personalization | `AIFOD Practitioner` | Local environment override |
+| `TIMEZONE` | Timezone for report dates and scheduling | `Asia/Tokyo` | Standard IANA timezone string |
 
 ---
 

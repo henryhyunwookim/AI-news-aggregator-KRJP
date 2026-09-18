@@ -7,14 +7,16 @@ Purpose:
     and generate rich English summaries, strategic insights, and practitioner Q&As.
 
 Two-Stage AI Architecture:
+    Initial Headline Pool:
+        - Ingests up to 70 deduplicated articles (up to 35 date-sorted headlines each from KR and JP pools).
     Stage 1: Country-Balanced Candidate Selection
-        - Takes up to 35 deduplicated articles each from KR and JP pools.
-        - Uses Gemini structured JSON mode to pick the top 3 KR and top 3 JP candidate stories
-          (6 total) based on relevance to AI divide, ODA, capacity building, and policy.
+        - Uses Gemini structured JSON mode to pick the top 10 KR and top 10 JP candidate stories
+          (20 total, configurable via STAGE1_CANDIDATES_PER_COUNTRY) based on relevance to AI divide,
+          ODA, capacity building, and policy.
     Enrichment Intermission:
-        - Resolves canonical publisher URLs and scrapes full lead paragraphs / OpenGraph text.
+        - Resolves canonical publisher URLs and scrapes full lead paragraphs / OpenGraph text for candidates.
     Stage 2: Deep Factual Synthesis
-        - Prompts Gemini with rich source text to generate the final 5-story digest.
+        - Prompts Gemini with rich source text to generate the final strictly balanced 5-story digest.
         - Strictly enforces country balance: 2-3 from KR and 2-3 from JP.
         - Generates dense factual summaries (actors, dates, venues), strategic "So What?" insights,
           and a practitioner policy dilemma with recommended stance.
@@ -33,7 +35,7 @@ from typing import Any
 import google.generativeai as genai
 from rapidfuzz import fuzz
 
-from src.config import GEMINI_API_KEY
+from src.config import GEMINI_API_KEY, GEMINI_MODEL, STAGE1_CANDIDATES_PER_COUNTRY
 from src.rss_parser import enrich_candidate_articles
 
 
@@ -46,14 +48,16 @@ class NewsFilter:
     Orchestrates the two-stage LLM evaluation, enrichment, and synthesis pipeline.
     """
 
-    def __init__(self, api_key: str | None = None) -> None:
+    def __init__(self, api_key: str | None = None, model_name: str | None = None) -> None:
         """
         Initializes the Gemini model client.
 
         Args:
             api_key: Optional Gemini API key. Defaults to GEMINI_API_KEY from src.config.
+            model_name: Optional Gemini model name. Defaults to GEMINI_MODEL from src.config.
         """
         self.api_key: str | None = api_key or GEMINI_API_KEY
+        self.model_name: str = model_name or GEMINI_MODEL
         if not self.api_key:
             raise ValueError(
                 "Gemini API key is required. Set GEMINI_API_KEY or GOOGLE_API_KEY in .env "
@@ -61,9 +65,9 @@ class NewsFilter:
             )
 
         genai.configure(api_key=self.api_key)
-        # Using gemini-2.5-flash-lite for rapid latency, high reasoning quality, and structured JSON output
+        # Using gemini-3.8-flash for rapid latency, superior reasoning quality, and structured JSON output
         self.model = genai.GenerativeModel(
-            "gemini-2.5-flash-lite",
+            self.model_name,
             generation_config={"response_mime_type": "application/json"}
         )
 
@@ -73,14 +77,15 @@ class NewsFilter:
 
     def select_candidates(self, articles: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """
-        Stage 1: Evaluates candidate headlines and selects the top 3 stories from
-        South Korea and top 3 stories from Japan (total 6 candidates).
+        Stage 1: Evaluates candidate headlines from an initial pool of up to 70 deduplicated
+        stories (up to 35 KR, 35 JP) and selects the top candidates from South Korea and
+        Japan (default: 10 KR and 10 JP, total 20 candidates).
 
         Args:
             articles: Deduplicated event stories from parse_and_filter_articles().
 
         Returns:
-            List of 6 selected candidate article dictionaries (3 KR, 3 JP).
+            List of selected candidate article dictionaries (up to 10 KR, 10 JP).
         """
         kr_pool = [a for a in articles if a.get("country") == "KR"][:35]
         jp_pool = [a for a in articles if a.get("country") == "JP"][:35]
@@ -88,11 +93,14 @@ class NewsFilter:
         if not kr_pool and not jp_pool:
             return []
 
+        kr_target = min(len(kr_pool), STAGE1_CANDIDATES_PER_COUNTRY)
+        jp_target = min(len(jp_pool), STAGE1_CANDIDATES_PER_COUNTRY)
+
         kr_items = [{"id": f"KR_{i}", "title": a["title"], "source": a["source"]} for i, a in enumerate(kr_pool)]
         jp_items = [{"id": f"JP_{i}", "title": a["title"], "source": a["source"]} for i, a in enumerate(jp_pool)]
 
         prompt = f"""You are an expert news analyst for the **AI for Developing Countries Forum (AIFOD)**.
-Your task is to analyze the candidate AI news headlines from South Korea and Japan and select the **top 3 most relevant, impactful, and distinct candidate stories from South Korea** and the **top 3 from Japan** (total 6 candidates).
+Your task is to analyze candidate AI news headlines from the initial pool of South Korea and Japan articles below and select the **top {kr_target} most relevant, impactful, and distinct candidate stories from South Korea** and the **top {jp_target} from Japan** (total {kr_target + jp_target} candidates).
 
 ### AIFOD Mission & Core Topics:
 1. **Bridging the AI Gap**: Actions, policies, or projects addressing the AI digital divide between developed and developing nations (the Global South).
@@ -105,16 +113,16 @@ Your task is to analyze the candidate AI news headlines from South Korea and Jap
 - **Zero Duplicate Events**: Do not select multiple articles that report on the same underlying announcement, event, or press release.
 - **Thematic Diversity**: Select stories representing different dimensions of AI (e.g. diplomacy/ODA, regulation, climate/social good, education).
 
-South Korea Articles:
+South Korea Articles ({len(kr_items)} total):
 {json.dumps(kr_items, ensure_ascii=False, indent=1)}
 
-Japan Articles:
+Japan Articles ({len(jp_items)} total):
 {json.dumps(jp_items, ensure_ascii=False, indent=1)}
 
 ### Response Format:
 Respond with ONLY a valid JSON object in this format:
 {{
-  "selected_ids": ["KR_0", "KR_1", "KR_2", "JP_0", "JP_1", "JP_2"]
+  "selected_ids": ["KR_0", "KR_1", "...", "JP_0", "JP_1", "..."]
 }}
 """
         max_retries: int = 3
@@ -141,8 +149,8 @@ Respond with ONLY a valid JSON object in this format:
                 print(f"[LLM] Candidate selection attempt {attempt + 1} error: {e}")
                 time.sleep(2)
 
-        # Graceful fallback: take first 3 KR and first 3 JP if model call fails
-        return kr_pool[:3] + jp_pool[:3]
+        # Graceful fallback: take top targets from KR and JP pools if model call fails
+        return kr_pool[:kr_target] + jp_pool[:jp_target]
 
     # =======================================================================
     # Stage 2: Deep Factual Synthesis & Strategic Analysis
@@ -272,7 +280,7 @@ Respond with ONLY a valid JSON object in this format:
         if not articles:
             return []
 
-        print(f"[LLM Pipeline] Stage 1: Selecting top candidate stories with country balance from {len(articles)} deduplicated articles...")
+        print(f"[LLM Pipeline] Stage 1: Selecting top candidate stories with country balance from {len(articles)} deduplicated articles (Model: {self.model_name})...")
         candidates = self.select_candidates(articles)
         kr_candidates = sum(1 for c in candidates if c.get("country") == "KR")
         jp_candidates = sum(1 for c in candidates if c.get("country") == "JP")

@@ -11,6 +11,8 @@ Environment Variables:
     - SERVICE_NAME: Cloud Run service name (default: ai-news-aggregator-krjp)
     - JOB_NAME: Cloud Scheduler job name (default: ai-news-aggregator-daily-trigger)
     - GEMINI_API_KEY / GOOGLE_API_KEY: Authentication key for Google Gemini Generative AI
+    - GEMINI_MODEL: Gemini model name (default: gemini-3.8-flash)
+    - STAGE1_CANDIDATES_PER_COUNTRY: Target candidate count per country in Stage 1 (default: 10)
     - RECIPIENT_EMAIL: Target email address for daily digest delivery
     - RECIPIENT_NAME: Target recipient name for report personalization (default: AIFOD Practitioner)
     - TIMEZONE: Timezone identifier for scheduling and report dates (default: Asia/Tokyo)
@@ -193,13 +195,16 @@ GCS_STATE_BLOB: str = os.getenv("GCS_STATE_BLOB", f"{SERVICE_NAME}/state.json")
 GCS_LOG_BLOB: str = os.getenv("GCS_LOG_BLOB", f"{SERVICE_NAME}/run_log.json")
 
 # ===========================================================================
-# 3. Large Language Model (Gemini) API Key
+# 3. Large Language Model (Gemini) Configurations
 # ===========================================================================
+GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
 GEMINI_API_KEY: str | None = (
     os.getenv("GEMINI_API_KEY")
     or os.getenv("GOOGLE_API_KEY")
     or resolve_cloud_secret(SECRET_GEMINI_API_KEY, GCP_PROJECT_ID)
 )
+# Number of candidates selected per country in Stage 1 candidate filtering (default: 10 KR + 10 JP = 20 total)
+STAGE1_CANDIDATES_PER_COUNTRY: int = int(os.getenv("STAGE1_CANDIDATES_PER_COUNTRY", "10"))
 
 # ===========================================================================
 # 4. Email Delivery & OAuth Scopes

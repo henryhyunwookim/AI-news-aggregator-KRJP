@@ -13,7 +13,7 @@ Architecture & Algorithmic Strategy:
          (e.g., Google Cloud Run) where Google egress may trigger rate limits or HTTP 503 blocks.
     2. Fuzzy Title Clustering (RapidFuzz):
        - Eliminates redundant press releases across competing media outlets by normalizing headlines
-         (stripping outlet tags like '- 로이슈', brackets like '[포토]', punctuation) and clustering
+         (stripping outlet tags like '- 로이터', brackets like '[포토]', punctuation) and clustering
          via token-set ratio similarity >= 65%.
        - For each cluster, the article with the longest real factual description is retained.
     3. Real Content Enrichment:
@@ -113,7 +113,7 @@ def normalize_title(title: str | None) -> str:
 
     Normalization Pipeline:
         1. Strips bracketed metadata: '[포토]', '(종합)', '【속보】', '[단독]'.
-        2. Strips trailing publisher attribution suffixes: '- 로이슈', '| 연합뉴스', '- 日本経済新聞'.
+        2. Strips trailing publisher attribution suffixes: '- 로이터', '| 연합뉴스', '- 日本経済新聞'.
         3. Strips punctuation and special characters while preserving Korean, Japanese, and Latin words.
         4. Collapses redundant whitespace and converts to lowercase.
 
@@ -450,7 +450,7 @@ def enrich_single_article(art: dict[str, Any]) -> dict[str, Any]:
 
 def enrich_candidate_articles(
     articles: list[dict[str, Any]],
-    max_workers: int = 6
+    max_workers: int = 12
 ) -> list[dict[str, Any]]:
     """
     Enriches candidate articles concurrently while preserving original ordering.
