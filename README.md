@@ -391,15 +391,15 @@ python deployment/sync_secrets.py
 Automated deployment to Google Cloud Platform is managed via the PowerShell deployment script:
 
 ```powershell
-.\deployment\deploy_cloud.ps1 -ProjectId "YOUR_GCP_PROJECT_ID"
+.\deployment\deploy_cloud.ps1 -ProjectId "YOUR_GCP_PROJECT_ID" -RecipientEmail "recipient@example.com"
 ```
 
 ### What the Deployment Script Does:
 1. **API Enablement**: Enables `run.googleapis.com`, `cloudbuild.googleapis.com`, `artifactregistry.googleapis.com`, `cloudscheduler.googleapis.com`, `secretmanager.googleapis.com`, and `storage.googleapis.com`.
 2. **GCS Bucket Setup**: Automatically provisions `gs://<project-id>-ai-news-data` for state and log persistence.
-3. **IAM Permissions**: Grants `roles/secretmanager.secretAccessor` and `roles/storage.objectUser` to the Cloud Run runtime service account.
-4. **Container Build & Deploy**: Builds and deploys the container from source to Cloud Run as a private service.
-5. **Scheduler Job**: Configures Cloud Scheduler recurring trigger (`0 0 * * *` in `Asia/Tokyo`) with OIDC authentication to invoke Cloud Run daily.
+3. **Secret & IAM Permissions**: Ensures `ai-news-recipient-email` exists in Secret Manager if provided, and grants `roles/secretmanager.secretAccessor` and `roles/storage.objectUser` to the Cloud Run runtime service account.
+4. **Container Build & Deploy**: Builds and deploys the container from source to Cloud Run as a private service with configured environment variables.
+5. **Scheduler Job**: Configures Cloud Scheduler recurring trigger (`0 0 * * *` in `Asia/Tokyo`, 300s attempt deadline) with OIDC authentication to invoke Cloud Run daily.
 
 ---
 

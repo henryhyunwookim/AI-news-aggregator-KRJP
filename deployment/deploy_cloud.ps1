@@ -52,7 +52,10 @@ param(
     [string]$Schedule,
 
     [Parameter(Mandatory = $false, HelpMessage = "Timezone for Schedule")]
-    [string]$TimeZone
+    [string]$TimeZone,
+
+    [Parameter(Mandatory = $false, HelpMessage = "Digest Recipient Email Address")]
+    [string]$RecipientEmail
 )
 
 $ErrorActionPreference = "Stop"
@@ -74,13 +77,21 @@ if (Test-Path $envPath) {
     }
 }
 
-# Resolve parameter values: Explicit CLI argument > .env file > Hardcoded default
-$PROJECT_ID = if ($ProjectId) { $ProjectId } elseif ($ENV_GCP_PROJECT_ID) { $ENV_GCP_PROJECT_ID } else { $null }
+# Resolve parameter values: Explicit CLI argument > .env file > gcloud active config > Hardcoded default
+$PROJECT_ID = if ($ProjectId) { 
+    $ProjectId 
+} elseif ($ENV_GCP_PROJECT_ID) { 
+    $ENV_GCP_PROJECT_ID 
+} else { 
+    $activeProj = (gcloud config get-value project 2>$null)
+    if ($activeProj -and $activeProj -ne "(unset)") { $activeProj.Trim() } else { $null }
+}
 $REGION = if ($Region) { $Region } elseif ($ENV_GCP_REGION) { $ENV_GCP_REGION } else { "us-central1" }
 $SERVICE_NAME = if ($ServiceName) { $ServiceName } elseif ($ENV_SERVICE_NAME) { $ENV_SERVICE_NAME } else { "ai-news-aggregator-krjp" }
 $JOB_NAME = if ($JobName) { $JobName } elseif ($ENV_JOB_NAME) { $ENV_JOB_NAME } else { "ai-news-aggregator-daily-trigger" }
 $SCHEDULE = if ($Schedule) { $Schedule } elseif ($ENV_SCHEDULE) { $ENV_SCHEDULE } else { "0 0 * * *" }
 $TIMEZONE = if ($TimeZone) { $TimeZone } elseif ($ENV_TIMEZONE) { $ENV_TIMEZONE } else { "Asia/Tokyo" }
+$RECIPIENT_EMAIL = if ($RecipientEmail) { $RecipientEmail } elseif ($ENV_RECIPIENT_EMAIL) { $ENV_RECIPIENT_EMAIL } else { $null }
 
 if (-not $PROJECT_ID) {
     Write-Error "GCP_PROJECT_ID is not provided and was not found in .env. Please supply -ProjectId or configure .env."
@@ -88,11 +99,14 @@ if (-not $PROJECT_ID) {
 }
 
 Write-Host "Deploying AI News Aggregator to Google Cloud..." -ForegroundColor Green
-Write-Host "  Project:  $PROJECT_ID"
-Write-Host "  Region:   $REGION"
-Write-Host "  Service:  $SERVICE_NAME"
-Write-Host "  Job:      $JOB_NAME"
-Write-Host "  Schedule: $SCHEDULE ($TIMEZONE)"
+Write-Host "  Project:   $PROJECT_ID"
+Write-Host "  Region:    $REGION"
+Write-Host "  Service:   $SERVICE_NAME"
+Write-Host "  Job:       $JOB_NAME"
+Write-Host "  Schedule:  $SCHEDULE ($TIMEZONE)"
+if ($RECIPIENT_EMAIL) {
+    Write-Host "  Recipient: $RECIPIENT_EMAIL"
+}
 Write-Host ""
 
 # ===========================================================================
@@ -130,6 +144,19 @@ Write-Host "Granting Secret Manager Secret Accessor and Storage Object User to $
 gcloud projects add-iam-policy-binding $PROJECT_ID --member="serviceAccount:$COMPUTE_SA" --role="roles/secretmanager.secretAccessor" --quiet
 gcloud projects add-iam-policy-binding $PROJECT_ID --member="serviceAccount:$COMPUTE_SA" --role="roles/storage.objectUser" --quiet
 
+# Ensure recipient email secret exists in Secret Manager if provided
+if ($RECIPIENT_EMAIL) {
+    Write-Host "Ensuring secret 'ai-news-recipient-email' exists in Secret Manager..." -ForegroundColor Cyan
+    $secretExists = gcloud secrets describe "ai-news-recipient-email" --project=$PROJECT_ID 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Creating secret 'ai-news-recipient-email' in project $PROJECT_ID..."
+        $RECIPIENT_EMAIL | gcloud secrets create "ai-news-recipient-email" --data-file=- --replication-policy=automatic --project=$PROJECT_ID
+    } else {
+        Write-Host "Updating secret 'ai-news-recipient-email' with latest value..."
+        $RECIPIENT_EMAIL | gcloud secrets versions add "ai-news-recipient-email" --data-file=- --project=$PROJECT_ID
+    }
+}
+
 # ===========================================================================
 # 4. Deploy Application to Cloud Run
 # ===========================================================================
@@ -137,10 +164,15 @@ $workspaceRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\")).Path
 Write-Host "[Step 3/5] Deploying container from source ($workspaceRoot) to Cloud Run..." -ForegroundColor Cyan
 Push-Location $workspaceRoot
 try {
+    $envVars = "GCP_PROJECT_ID=$PROJECT_ID,GCP_REGION=$REGION,SERVICE_NAME=$SERVICE_NAME,GCS_BUCKET_NAME=$BUCKET_NAME,GEMINI_MODEL=gemini-3.8-flash"
+    if ($RECIPIENT_EMAIL) {
+        $envVars += ",RECIPIENT_EMAIL=$RECIPIENT_EMAIL"
+    }
+
     gcloud run deploy $SERVICE_NAME `
         --source . `
         --region $REGION `
-        --set-env-vars "GCP_PROJECT_ID=$PROJECT_ID,GCP_REGION=$REGION,SERVICE_NAME=$SERVICE_NAME,GCS_BUCKET_NAME=$BUCKET_NAME,GEMINI_MODEL=gemini-3.8-flash" `
+        --set-env-vars $envVars `
         --no-allow-unauthenticated `
         --quiet
     if ($LASTEXITCODE -ne 0) {
@@ -194,6 +226,7 @@ if ($existingJob) {
         --location=$REGION `
         --schedule="$SCHEDULE" `
         --time-zone=$TIMEZONE `
+        --attempt-deadline=300s `
         --uri=$SERVICE_URL `
         --http-method=POST `
         --oidc-service-account-email=$SA_EMAIL
@@ -203,6 +236,7 @@ if ($existingJob) {
         --location=$REGION `
         --schedule="$SCHEDULE" `
         --time-zone=$TIMEZONE `
+        --attempt-deadline=300s `
         --uri=$SERVICE_URL `
         --http-method=POST `
         --oidc-service-account-email=$SA_EMAIL
