@@ -7,7 +7,7 @@ Purpose:
 
 Environment Variables:
     - GCP_PROJECT_ID: Google Cloud Platform Project ID
-    - GCP_REGION: Cloud Run and Scheduler region (default: us-central1)
+    - GCP_REGION: Cloud Run and Scheduler region (default: asia-northeast1)
     - SERVICE_NAME: Cloud Run service name (default: ai-news-aggregator-krjp)
     - JOB_NAME: Cloud Scheduler job name (default: ai-news-aggregator-daily-trigger)
     - GEMINI_API_KEY / GOOGLE_API_KEY: Authentication key for Google Gemini Generative AI
@@ -176,7 +176,7 @@ def save_cloud_secret(secret_id: str, payload: str, project_id: str | None = Non
 # 2. Google Cloud Platform & Serverless Configuration
 # ===========================================================================
 GCP_PROJECT_ID: str = get_default_gcp_project()
-GCP_REGION: str = os.getenv("GCP_REGION", "us-central1")
+GCP_REGION: str = os.getenv("GCP_REGION", "asia-northeast1")
 SERVICE_NAME: str = os.getenv("SERVICE_NAME", "ai-news-aggregator-krjp")
 JOB_NAME: str = os.getenv("JOB_NAME", "ai-news-aggregator-daily-trigger")
 

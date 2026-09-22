@@ -25,7 +25,7 @@ flowchart TD
     %% Compute & Hosting Infrastructure
     %% -------------------------------------------------------------
     subgraph ComputeLayer ["2. Compute & Runtime Infrastructure (GCP Cloud Run)"]
-        CR["🚀 Cloud Run Service<br/><code>ai-news-aggregator-krjp</code><br/>(Region: us-central1)"]
+        CR["🚀 Cloud Run Service<br/><code>ai-news-aggregator-krjp</code><br/>(Region: asia-northeast1)"]
         GUNICORN["🦄 Gunicorn WSGI Server<br/>(1 Worker, 8 Threads, Port: 8080)"]
         FLASK["🐍 Flask App<br/><code>src/app.py</code><br/>(POST /?hours=24)"]
         MAIN["⚙️ Orchestration Core<br/><code>src/main.py</code> (main())"]
@@ -283,7 +283,7 @@ In this cloud-native architecture, environment variables can be provided via Goo
 | Variable | Description | Default | Source / Fallback |
 | :--- | :--- | :--- | :--- |
 | `GCP_PROJECT_ID` | Google Cloud Platform project ID | Auto-resolved | Resolves from `gcloud config get-value project` |
-| `GCP_REGION` | Cloud Run and Scheduler region | `us-central1` | Environment or CLI parameter |
+| `GCP_REGION` | Cloud Run and Scheduler region | `asia-northeast1` | Environment or CLI parameter |
 | `SERVICE_NAME` | Cloud Run service name | `ai-news-aggregator-krjp` | Environment or CLI parameter |
 | `JOB_NAME` | Cloud Scheduler job name | `ai-news-aggregator-daily-trigger` | Environment or CLI parameter |
 | `GEMINI_MODEL` | Google Gemini model name | `gemini-3.8-flash` | Configurable model identifier |
@@ -408,13 +408,13 @@ Automated deployment to Google Cloud Platform is managed via the PowerShell depl
 You can manually trigger the deployed Cloud Run service through Cloud Scheduler at any time using `gcloud`:
 
 ```bash
-gcloud scheduler jobs run ai-news-aggregator-daily-trigger --location=us-central1
+gcloud scheduler jobs run ai-news-aggregator-daily-trigger --location=asia-northeast1
 ```
 
 To view live Cloud Run execution logs:
 
 ```bash
-gcloud beta run services logs tail ai-news-aggregator-krjp --region=us-central1
+gcloud beta run services logs tail ai-news-aggregator-krjp --region=asia-northeast1
 ```
 
 

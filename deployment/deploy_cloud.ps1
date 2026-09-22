@@ -11,7 +11,7 @@
     The Google Cloud Platform project ID. If omitted, it will be loaded from the local .env file.
 
 .PARAMETER Region
-    The GCP region for Cloud Run and Cloud Scheduler deployment. Defaults to 'us-central1'.
+    The GCP region for Cloud Run and Cloud Scheduler deployment. Defaults to 'asia-northeast1'.
 
 .PARAMETER ServiceName
     The name of the Cloud Run service. Defaults to 'ai-news-aggregator-krjp'.
@@ -86,7 +86,7 @@ $PROJECT_ID = if ($ProjectId) {
     $activeProj = (gcloud config get-value project 2>$null)
     if ($activeProj -and $activeProj -ne "(unset)") { $activeProj.Trim() } else { $null }
 }
-$REGION = if ($Region) { $Region } elseif ($ENV_GCP_REGION) { $ENV_GCP_REGION } else { "us-central1" }
+$REGION = if ($Region) { $Region } elseif ($ENV_GCP_REGION) { $ENV_GCP_REGION } else { "asia-northeast1" }
 $SERVICE_NAME = if ($ServiceName) { $ServiceName } elseif ($ENV_SERVICE_NAME) { $ENV_SERVICE_NAME } else { "ai-news-aggregator-krjp" }
 $JOB_NAME = if ($JobName) { $JobName } elseif ($ENV_JOB_NAME) { $ENV_JOB_NAME } else { "ai-news-aggregator-daily-trigger" }
 $SCHEDULE = if ($Schedule) { $Schedule } elseif ($ENV_SCHEDULE) { $ENV_SCHEDULE } else { "0 0 * * *" }
