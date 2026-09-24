@@ -273,7 +273,7 @@ This repository is built on a fully portable, multi-PC cloud-native architecture
 | **API Keys & Secrets** | **Secret Manager** | `secrets/gemini-api-key/versions/latest` | Resolved via Python SDK on Cloud Run; auto-fallback to `gcloud secrets versions access` CLI on local workstations. |
 | **OAuth 2.0 Tokens** | **Secret Manager** | `secrets/gmail-agent-token/versions/latest` | Resolved from Secret Manager; refreshed in-memory; updated in Secret Manager automatically; cached only in OS temp dir (`tempfile.gettempdir()`). |
 | **OAuth Client Config** | **Secret Manager** | `secrets/gmail-oauth-credentials/versions/latest` | Loaded directly from Secret Manager when interactive browser authorization is needed. |
-| **Persistent State** | **Cloud Storage (GCS)** | `gs://<project-id>-ai-news-data/ai-news-aggregator-krjp/state.json` | Single source of truth for delivered article URLs, hashes, and run counters; local cache strictly in OS temp directory. |
+| **Persistent State** | **Cloud Storage (GCS)** | `gs://<project-id>-ai-news-data/ai-news-aggregator-krjp/state.json` (`asia-northeast1`) | Regional bucket in Tokyo co-located with Cloud Run; single source of truth for delivered article URLs, hashes, and run counters; local cache strictly in OS temp directory. |
 | **Operational & Audit Logs** | **GCS & Cloud Logging** | `gs://<project-id>-ai-news-data/ai-news-aggregator-krjp/run_log.json` + `stdout` | Decoupled from memory/state; structured JSON logs emitted to `stdout` for streaming to Google Cloud Logging. |
 
 ### Environment Variables & Local Overrides
