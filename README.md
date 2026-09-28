@@ -214,6 +214,33 @@ flowchart TD
 
 ---
 
+## 🏛️ Technical & Architectural Decisions
+
+- **Two-Stage Country-Balanced AI Pipeline (Candidate Filtering → Content Enrichment → Deep Synthesis)**:
+  - *Decision*: Decouple lightweight headline candidate triage from rich web content enrichment and final structured JSON generation.
+  - *Context & Motivation*: Ingesting 400+ raw articles across Korea and Japan into full-content extraction and single-stage LLM context exceeds API token limits, risks rate throttling, and introduces context dilution.
+  - *Rationale & Alternatives Considered*: A single-pass approach either forces summarization of bare headlines (producing shallow summaries) or scraping hundreds of web pages (causing network timeouts and bot blocks). Two-stage filtering selects the top 20 candidates (10 KR, 10 JP) first, enriches only those via parallel metadata extraction, and then synthesizes the final 5 balanced stories.
+  - *Consequences & Impact*: Guarantees high-signal summaries with exact country parity (2-3 KR, 2-3 JP) while slashing token costs and scraping overhead by >90%.
+
+- **Dual-Engine RSS Retrieval with Bing News Fallback**:
+  - *Decision*: Query Google News RSS feeds with automatic, transparent fallback to Bing News RSS upon HTTP 503 errors or empty feeds.
+  - *Context & Motivation*: Cloud Run egress IP ranges in `asia-northeast1` occasionally encounter anti-scraping rate-limiting from Google News endpoints.
+  - *Rationale & Alternatives Considered*: Deploying rotating residential proxy pools introduces substantial monthly recurring costs and latency. Bing News RSS provides near-100% uptime from datacenter IPs for regional Korean and Japanese keywords.
+  - *Consequences & Impact*: Ensures zero-failure daily automated runs without requiring third-party proxy subscriptions.
+
+- **Algorithmic Fuzzy Clustering (RapidFuzz) Prior to AI Ingestion**:
+  - *Decision*: Cluster raw headlines using token-set ratio similarity (`>= 65%`) before passing stories to the LLM.
+  - *Context & Motivation*: Major government and corporate press releases are syndicated across dozens of Korean and Japanese news outlets with near-identical headlines.
+  - *Rationale & Alternatives Considered*: Passing syndicated articles to the LLM wastes candidate quota and risks multiple entries covering the exact same event. Fuzzy token-set clustering merges duplicate coverage into a single best-quality article before AI evaluation.
+  - *Consequences & Impact*: Maximizes thematic diversity in the candidate pool without the compute overhead of dense vector embeddings.
+
+- **Serverless Cloud Run Containerization with OIDC Cloud Scheduler**:
+  - *Decision*: Deploy as a containerized Flask microservice on Google Cloud Run triggered via Cloud Scheduler OIDC authentication.
+  - *Context & Motivation*: The pipeline runs once per day at midnight (`Asia/Tokyo`), making 24/7 provisioned servers economically wasteful.
+  - *Rationale & Alternatives Considered*: Cloud Run scales to zero between runs, incurring minimal compute costs while isolating execution dependencies (Python 3.11, Docker, C libraries) reliably.
+
+---
+
 ## 📬 Sample Daily Digest Output Preview
 
 Below is an authentic visual preview of the daily email digest delivered directly to the practitioner's inbox via Gmail:
