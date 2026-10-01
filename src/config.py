@@ -133,9 +133,17 @@ def save_cloud_secret(secret_id: str, payload: str, project_id: str | None = Non
 
             client = secretmanager.SecretManagerServiceClient()
             parent = f"projects/{proj}/secrets/{secret_id}"
-            client.add_secret_version(
+            new_ver = client.add_secret_version(
                 request={"parent": parent, "payload": {"data": payload.encode("utf-8")}}
             )
+            # Auto-prune old versions
+            try:
+                new_v_id = new_ver.name.split("/")[-1]
+                for v in client.list_secret_versions(request={"parent": parent}):
+                    if v.name.split("/")[-1] != new_v_id and v.state == secretmanager.SecretVersion.State.ENABLED:
+                        client.destroy_secret_version(request={"name": v.name})
+            except Exception:
+                pass
             return True
         except Exception:
             return False
@@ -160,7 +168,21 @@ def save_cloud_secret(secret_id: str, payload: str, project_id: str | None = Non
                 f"--project={proj}",
             ]
             res = subprocess.run(cmd, capture_output=True, text=True, timeout=15, shell=is_win)
-            return res.returncode == 0
+            if res.returncode == 0:
+                # Auto-prune old versions via gcloud CLI
+                try:
+                    list_cmd = ["gcloud", "secrets", "versions", "list", secret_id, f"--project={proj}", "--filter=state:ENABLED", "--format=value(name)"]
+                    list_res = subprocess.run(list_cmd, capture_output=True, text=True, shell=is_win)
+                    if list_res.returncode == 0:
+                        active_vers = [v.strip().split("/")[-1] for v in list_res.stdout.splitlines() if v.strip()]
+                        if len(active_vers) > 1:
+                            sorted_vers = sorted(active_vers, key=lambda x: int(x) if x.isdigit() else 0, reverse=True)
+                            for old_v in sorted_vers[1:]:
+                                subprocess.run(["gcloud", "secrets", "versions", "destroy", old_v, f"--secret={secret_id}", f"--project={proj}", "--quiet"], shell=is_win, capture_output=True)
+                except Exception:
+                    pass
+                return True
+            return False
         finally:
             if os.path.exists(temp_path):
                 os.remove(temp_path)

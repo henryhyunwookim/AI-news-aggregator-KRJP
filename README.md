@@ -239,6 +239,11 @@ flowchart TD
   - *Context & Motivation*: The pipeline runs once per day at midnight (`Asia/Tokyo`), making 24/7 provisioned servers economically wasteful.
   - *Rationale & Alternatives Considered*: Cloud Run scales to zero between runs, incurring minimal compute costs while isolating execution dependencies (Python 3.11, Docker, C libraries) reliably.
 
+- **Secret Manager Single-Version Retention & Artifact Registry Cost Hygiene**:
+  - *Decision*: Enforce automated version pruning in `src/config.py` and `deployment/sync_secrets.py` upon updating secrets, coupled with Artifact Registry cleanup policies.
+  - *Context & Motivation*: Secret Manager charges for active versions exceeding the 6-version free tier. Repeated deployments or secret updates without lifecycle management cause dangling versions and unexpected billing creep.
+  - *Rationale & Alternatives Considered*: The application automatically destroys superseded enabled versions upon writing new ones, guaranteeing only the single latest version remains active within the free tier. Container repositories apply lifecycle policies keeping the 3 most recent builds and purging untagged digests older than 3 days.
+
 ---
 
 ## 📬 Sample Daily Digest Output Preview
