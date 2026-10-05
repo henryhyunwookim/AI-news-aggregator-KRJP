@@ -11,7 +11,9 @@ Environment Variables:
     - SERVICE_NAME: Cloud Run service name (default: ai-news-aggregator-krjp)
     - JOB_NAME: Cloud Scheduler job name (default: ai-news-aggregator-daily-trigger)
     - GEMINI_API_KEY / GOOGLE_API_KEY: Authentication key for Google Gemini Generative AI
-    - GEMINI_MODEL: Gemini model name (default: gemini-3.8-flash)
+    - GEMINI_STAGE1_MODEL: Gemini model name for Stage 1 candidate selection (default: gemini-3.5-flash-lite)
+    - GEMINI_STAGE2_MODEL: Gemini model name for Stage 2 synthesis (default: gemini-3.8-flash)
+    - GEMINI_MODEL: Backward-compatible alias for GEMINI_STAGE2_MODEL
     - STAGE1_CANDIDATES_PER_COUNTRY: Target candidate count per country in Stage 1 (default: 10)
     - RECIPIENT_EMAIL: Target email address for daily digest delivery
     - RECIPIENT_NAME: Target recipient name for report personalization (default: AIFOD Practitioner)
@@ -219,8 +221,12 @@ GCS_LOG_BLOB: str = os.getenv("GCS_LOG_BLOB", f"{SERVICE_NAME}/run_log.json")
 # ===========================================================================
 # 3. Large Language Model (Gemini) Configurations
 # ===========================================================================
-GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+# Stage 1: High-throughput candidate selection (default: gemini-3.5-flash-lite)
 GEMINI_STAGE1_MODEL: str = os.getenv("GEMINI_STAGE1_MODEL", "gemini-3.5-flash-lite")
+
+# Stage 2: Deep reasoning and structured synthesis (default: gemini-3.8-flash)
+GEMINI_STAGE2_MODEL: str = os.getenv("GEMINI_STAGE2_MODEL") or os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+GEMINI_MODEL: str = GEMINI_STAGE2_MODEL  # Backward-compatible alias
 GEMINI_API_KEY: str | None = (
     os.getenv("GEMINI_API_KEY")
     or os.getenv("GOOGLE_API_KEY")

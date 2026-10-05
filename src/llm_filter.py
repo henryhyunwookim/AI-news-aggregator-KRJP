@@ -35,7 +35,7 @@ from typing import Any
 import google.generativeai as genai
 from rapidfuzz import fuzz
 
-from src.config import GEMINI_API_KEY, GEMINI_MODEL, GEMINI_STAGE1_MODEL, STAGE1_CANDIDATES_PER_COUNTRY
+from src.config import GEMINI_API_KEY, GEMINI_STAGE2_MODEL, GEMINI_STAGE1_MODEL, STAGE1_CANDIDATES_PER_COUNTRY
 from src.rss_parser import enrich_candidate_articles
 
 
@@ -59,12 +59,12 @@ class NewsFilter:
 
         Args:
             api_key: Optional Gemini API key. Defaults to GEMINI_API_KEY from src.config.
-            model_name: Optional Gemini model name for synthesis (Stage 2). Defaults to GEMINI_MODEL.
+            model_name: Optional Gemini model name for synthesis (Stage 2). Defaults to GEMINI_STAGE2_MODEL.
             stage1_model_name: Optional Gemini model name for candidate selection (Stage 1).
                                Defaults to GEMINI_STAGE1_MODEL (gemini-3.5-flash-lite).
         """
         self.api_key: str | None = api_key or GEMINI_API_KEY
-        self.model_name: str = model_name or GEMINI_MODEL
+        self.model_name: str = model_name or GEMINI_STAGE2_MODEL
         self.stage1_model_name: str = stage1_model_name or GEMINI_STAGE1_MODEL
         if not self.api_key:
             raise ValueError(
