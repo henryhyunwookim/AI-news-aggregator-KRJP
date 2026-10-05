@@ -324,7 +324,7 @@ In this cloud-native architecture, environment variables can be provided via Goo
 | `SERVICE_NAME` | Cloud Run service name | `ai-news-aggregator-krjp` | Environment or CLI parameter |
 | `JOB_NAME` | Cloud Scheduler job name | `ai-news-aggregator-daily-trigger` | Environment or CLI parameter |
 | `GEMINI_STAGE1_MODEL` | Google Gemini model name for Stage 1 candidate selection | `gemini-3.5-flash-lite` | High-efficiency candidate filter |
-| `GEMINI_STAGE2_MODEL` | Google Gemini model name for Stage 2 synthesis (fallback: `GEMINI_MODEL`) | `gemini-3.8-flash` | Configurable model identifier |
+| `GEMINI_STAGE2_MODEL` | Google Gemini model name for Stage 2 synthesis | `gemini-3.8-flash` | Configurable model identifier |
 | `STAGE1_CANDIDATES_PER_COUNTRY` | Candidates selected per country in Stage 1 | `10` | 10 KR + 10 JP = 20 total candidates |
 | `GEMINI_API_KEY` | Gemini API authentication key | Secret Manager | Secret `gemini-api-key` |
 | `RECIPIENT_EMAIL` | Target email address for daily digest | Secret Manager | Secret `ai-news-recipient-email` |
