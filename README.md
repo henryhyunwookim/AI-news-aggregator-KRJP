@@ -50,7 +50,7 @@ flowchart TD
     %% AI Intelligence & Content Enrichment Layer
     %% -------------------------------------------------------------
     subgraph AILayer ["4. Two-Stage AI Reasoning & Enrichment Layer (src/llm_filter.py)"]
-        STAGE1["🎯 Stage 1: Country-Balanced Candidate Selection<br/>Pick Top 10 KR & Top 10 JP Candidates from ~70 Headline Pool"]
+        STAGE1["🎯 Stage 1: Country-Balanced Candidate Selection<br/>• Model: <code>gemini-3.5-flash-lite</code> (Compact Input Format)<br/>• Pick Top 10 KR & Top 10 JP Candidates from ~70 Headline Pool"]
         ENRICHER["🌐 Real Web Content Enrichment<br/>• <code>googlenewsdecoder</code> (Unwrap CBMi Redirects)<br/>• Fetch <code>og:description</code> & Lead Paragraphs"]
         STAGE2["✨ Stage 2: Deep Synthesis (Google Gemini API)<br/>• Model: <code>gemini-3.8-flash</code><br/>• Country Balance: 2-3 KR and 2-3 JP (Total 5)<br/>• Rich Factual Summaries, Strategic Insights & Q&A"]
         GUARDRAIL["🛡️ Post-LLM Deduplication Guardrail<br/>Verify Cross-Article Title Similarity < 55%"]
@@ -202,9 +202,9 @@ flowchart TD
 - **Article Content Enrichment**: Resolves Google News `CBMi...` redirects to canonical publisher URLs via `googlenewsdecoder` and fetches real article metadata (`og:description`, `meta[name="description"]`, and lead paragraphs).
 - **Two-Stage Country-Balanced AI Pipeline**:
   - **Initial Headline Pool**: Ingests an initial pool of up to 70 deduplicated headlines (up to 35 date-sorted headlines from South Korea and 35 from Japan) evaluated for AIFOD mission relevance.
-  - **Stage 1**: Selects 10 candidate stories from South Korea and 10 from Japan (total 20 candidates, configurable via `STAGE1_CANDIDATES_PER_COUNTRY`).
+  - **Stage 1 (Flash-Lite & Compact Format)**: Selects 10 candidate stories from South Korea and 10 from Japan (total 20 candidates, configurable via `STAGE1_CANDIDATES_PER_COUNTRY`) using `gemini-3.5-flash-lite` and token-optimized line formatting.
   - **Content Enrichment**: Enriches all 20 candidates concurrently with canonical publisher URLs, `og:description`, and full lead paragraphs.
-  - **Stage 2**: Evaluates enriched texts and generates a strictly balanced 5-article digest (**2-3 from Korea and 2-3 from Japan**) using rich source text.
+  - **Stage 2 (Deep Reasoning Flash)**: Evaluates enriched texts and generates a strictly balanced 5-article digest (**2-3 from Korea and 2-3 from Japan**) using rich source text and `gemini-3.8-flash`.
 - **High-Density AIFOD Deliverables**:
   - **English Summary**: 3-4 dense, factual sentences naming specific actors, partner countries, dates, venues, and policies.
   - **AIFOD Strategic Insight**: Analytical "So What?" highlighting implications for the Global South without restating summary facts.
@@ -215,6 +215,11 @@ flowchart TD
 ---
 
 ## 🏛️ Technical & Architectural Decisions
+
+- **Tiered Model Routing (`gemini-3.5-flash-lite` + `gemini-3.8-flash`) & Compact Formatting**:
+  - *Decision*: Decouple Stage 1 candidate ID selection from Stage 2 synthesis by routing Stage 1 to `gemini-3.5-flash-lite` with compact line formatting (`[ID] Title (Source)`), reserving `gemini-3.8-flash` for Stage 2 factual synthesis.
+  - *Context & Motivation*: Ingesting up to 70 headlines in indented JSON format with a high-capacity reasoning model consumed unnecessary tokens and budget for what is fundamentally a fast ID classification and ranking task.
+  - *Rationale & Alternatives Considered*: Flash-Lite delivers equivalent precision for candidate ranking at roughly 25% of the token cost and sub-second latency. Compact line formatting eliminates redundant JSON syntax tokens while ensuring Stage 2 retains full reasoning capacity for strategic AIFOD insights.
 
 - **Two-Stage Country-Balanced AI Pipeline (Candidate Filtering → Content Enrichment → Deep Synthesis)**:
   - *Decision*: Decouple lightweight headline candidate triage from rich web content enrichment and final structured JSON generation.
@@ -318,7 +323,8 @@ In this cloud-native architecture, environment variables can be provided via Goo
 | `GCP_REGION` | Cloud Run and Scheduler region | `asia-northeast1` | Environment or CLI parameter |
 | `SERVICE_NAME` | Cloud Run service name | `ai-news-aggregator-krjp` | Environment or CLI parameter |
 | `JOB_NAME` | Cloud Scheduler job name | `ai-news-aggregator-daily-trigger` | Environment or CLI parameter |
-| `GEMINI_MODEL` | Google Gemini model name | `gemini-3.8-flash` | Configurable model identifier |
+| `GEMINI_MODEL` | Google Gemini model name for Stage 2 synthesis | `gemini-3.8-flash` | Configurable model identifier |
+| `GEMINI_STAGE1_MODEL` | Google Gemini model name for Stage 1 selection | `gemini-3.5-flash-lite` | High-efficiency candidate filter |
 | `STAGE1_CANDIDATES_PER_COUNTRY` | Candidates selected per country in Stage 1 | `10` | 10 KR + 10 JP = 20 total candidates |
 | `GEMINI_API_KEY` | Gemini API authentication key | Secret Manager | Secret `gemini-api-key` |
 | `RECIPIENT_EMAIL` | Target email address for daily digest | Secret Manager | Secret `ai-news-recipient-email` |

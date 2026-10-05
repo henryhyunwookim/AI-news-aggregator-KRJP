@@ -164,7 +164,7 @@ $workspaceRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\")).Path
 Write-Host "[Step 3/5] Deploying container from source ($workspaceRoot) to Cloud Run..." -ForegroundColor Cyan
 Push-Location $workspaceRoot
 try {
-    $envVars = "GCP_PROJECT_ID=$PROJECT_ID,GCP_REGION=$REGION,SERVICE_NAME=$SERVICE_NAME,GCS_BUCKET_NAME=$BUCKET_NAME,GEMINI_MODEL=gemini-3.8-flash"
+    $envVars = "GCP_PROJECT_ID=$PROJECT_ID,GCP_REGION=$REGION,SERVICE_NAME=$SERVICE_NAME,GCS_BUCKET_NAME=$BUCKET_NAME,GEMINI_MODEL=gemini-3.8-flash,GEMINI_STAGE1_MODEL=gemini-3.5-flash-lite"
     if ($RECIPIENT_EMAIL) {
         $envVars += ",RECIPIENT_EMAIL=$RECIPIENT_EMAIL"
     }

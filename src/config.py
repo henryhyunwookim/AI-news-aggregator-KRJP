@@ -220,6 +220,7 @@ GCS_LOG_BLOB: str = os.getenv("GCS_LOG_BLOB", f"{SERVICE_NAME}/run_log.json")
 # 3. Large Language Model (Gemini) Configurations
 # ===========================================================================
 GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+GEMINI_STAGE1_MODEL: str = os.getenv("GEMINI_STAGE1_MODEL", "gemini-3.5-flash-lite")
 GEMINI_API_KEY: str | None = (
     os.getenv("GEMINI_API_KEY")
     or os.getenv("GOOGLE_API_KEY")

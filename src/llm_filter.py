@@ -35,7 +35,7 @@ from typing import Any
 import google.generativeai as genai
 from rapidfuzz import fuzz
 
-from src.config import GEMINI_API_KEY, GEMINI_MODEL, STAGE1_CANDIDATES_PER_COUNTRY
+from src.config import GEMINI_API_KEY, GEMINI_MODEL, GEMINI_STAGE1_MODEL, STAGE1_CANDIDATES_PER_COUNTRY
 from src.rss_parser import enrich_candidate_articles
 
 
@@ -48,16 +48,24 @@ class NewsFilter:
     Orchestrates the two-stage LLM evaluation, enrichment, and synthesis pipeline.
     """
 
-    def __init__(self, api_key: str | None = None, model_name: str | None = None) -> None:
+    def __init__(
+        self,
+        api_key: str | None = None,
+        model_name: str | None = None,
+        stage1_model_name: str | None = None,
+    ) -> None:
         """
-        Initializes the Gemini model client.
+        Initializes the Gemini model clients.
 
         Args:
             api_key: Optional Gemini API key. Defaults to GEMINI_API_KEY from src.config.
-            model_name: Optional Gemini model name. Defaults to GEMINI_MODEL from src.config.
+            model_name: Optional Gemini model name for synthesis (Stage 2). Defaults to GEMINI_MODEL.
+            stage1_model_name: Optional Gemini model name for candidate selection (Stage 1).
+                               Defaults to GEMINI_STAGE1_MODEL (gemini-3.5-flash-lite).
         """
         self.api_key: str | None = api_key or GEMINI_API_KEY
         self.model_name: str = model_name or GEMINI_MODEL
+        self.stage1_model_name: str = stage1_model_name or GEMINI_STAGE1_MODEL
         if not self.api_key:
             raise ValueError(
                 "Gemini API key is required. Set GEMINI_API_KEY or GOOGLE_API_KEY in .env "
@@ -65,7 +73,12 @@ class NewsFilter:
             )
 
         genai.configure(api_key=self.api_key)
-        # Using gemini-3.8-flash for rapid latency, superior reasoning quality, and structured JSON output
+        # Using gemini-3.5-flash-lite for cost-effective, high-throughput stage 1 candidate filtering
+        self.stage1_model = genai.GenerativeModel(
+            self.stage1_model_name,
+            generation_config={"response_mime_type": "application/json"}
+        )
+        # Using gemini-3.8-flash for deep synthesis, nuanced reasoning, and structured JSON output
         self.model = genai.GenerativeModel(
             self.model_name,
             generation_config={"response_mime_type": "application/json"}
@@ -96,8 +109,9 @@ class NewsFilter:
         kr_target = min(len(kr_pool), STAGE1_CANDIDATES_PER_COUNTRY)
         jp_target = min(len(jp_pool), STAGE1_CANDIDATES_PER_COUNTRY)
 
-        kr_items = [{"id": f"KR_{i}", "title": a["title"], "source": a["source"]} for i, a in enumerate(kr_pool)]
-        jp_items = [{"id": f"JP_{i}", "title": a["title"], "source": a["source"]} for i, a in enumerate(jp_pool)]
+        # Compact line-based representation to drastically cut token consumption
+        kr_lines = "\n".join(f"[{f'KR_{i}'}] {a.get('title', '').strip()} (Source: {a.get('source', '').strip()})" for i, a in enumerate(kr_pool))
+        jp_lines = "\n".join(f"[{f'JP_{i}'}] {a.get('title', '').strip()} (Source: {a.get('source', '').strip()})" for i, a in enumerate(jp_pool))
 
         prompt = f"""You are an expert news analyst for the **AI for Developing Countries Forum (AIFOD)**.
 Your task is to analyze candidate AI news headlines from the initial pool of South Korea and Japan articles below and select the **top {kr_target} most relevant, impactful, and distinct candidate stories from South Korea** and the **top {jp_target} from Japan** (total {kr_target + jp_target} candidates).
@@ -113,11 +127,11 @@ Your task is to analyze candidate AI news headlines from the initial pool of Sou
 - **Zero Duplicate Events**: Do not select multiple articles that report on the same underlying announcement, event, or press release.
 - **Thematic Diversity**: Select stories representing different dimensions of AI (e.g. diplomacy/ODA, regulation, climate/social good, education).
 
-South Korea Articles ({len(kr_items)} total):
-{json.dumps(kr_items, ensure_ascii=False, indent=1)}
+South Korea Articles ({len(kr_pool)} total):
+{kr_lines}
 
-Japan Articles ({len(jp_items)} total):
-{json.dumps(jp_items, ensure_ascii=False, indent=1)}
+Japan Articles ({len(jp_pool)} total):
+{jp_lines}
 
 ### Response Format:
 Respond with ONLY a valid JSON object in this format:
@@ -128,7 +142,7 @@ Respond with ONLY a valid JSON object in this format:
         max_retries: int = 3
         for attempt in range(max_retries):
             try:
-                resp = self.model.generate_content(prompt)
+                resp = self.stage1_model.generate_content(prompt)
                 data = json.loads(resp.text.strip())
                 cand_ids: list[str] = data.get("selected_ids", [])
 
@@ -280,7 +294,7 @@ Respond with ONLY a valid JSON object in this format:
         if not articles:
             return []
 
-        print(f"[LLM Pipeline] Stage 1: Selecting top candidate stories with country balance from {len(articles)} deduplicated articles (Model: {self.model_name})...")
+        print(f"[LLM Pipeline] Stage 1: Selecting top candidate stories with country balance from {len(articles)} deduplicated articles (Stage 1 Model: {self.stage1_model_name}, Synthesis Model: {self.model_name})...")
         candidates = self.select_candidates(articles)
         kr_candidates = sum(1 for c in candidates if c.get("country") == "KR")
         jp_candidates = sum(1 for c in candidates if c.get("country") == "JP")
