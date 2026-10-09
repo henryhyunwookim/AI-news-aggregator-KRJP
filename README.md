@@ -249,6 +249,12 @@ flowchart TD
   - *Context & Motivation*: Secret Manager charges for active versions exceeding the 6-version free tier. Repeated deployments or secret updates without lifecycle management cause dangling versions and unexpected billing creep.
   - *Rationale & Alternatives Considered*: The application automatically destroys superseded enabled versions upon writing new ones, guaranteeing only the single latest version remains active within the free tier. Container repositories apply lifecycle policies keeping the 3 most recent builds and purging untagged digests older than 3 days. Non-sensitive recipient emails (`RECIPIENT_EMAIL`) are injected directly via Cloud Run environment variables to preserve free secret quotas.
 
+- **Resilient URL Decoding & Upstream Dependency Isolation**:
+  - *Decision*: Pin `selectolax<1.0.0` in `requirements.txt` and wrap `googlenewsdecoder` imports defensively with fallback exception handling in `src/rss_parser.py`.
+  - *Context & Motivation*: `googlenewsdecoder` relies on the legacy `selectolax.parser` module. When `selectolax` released major version 1.0.0 with the Modest backend removed, unpinned container builds encountered fatal worker boot crashes.
+  - *Rationale & Alternatives Considered*: Rather than allowing an external scraper library to break WSGI boot, defense-in-depth ensures the core web server and daily news pipeline continue running with canonical URL fallback even if third-party decoding libraries fail.
+
+
 ---
 
 ## 📬 Sample Daily Digest Output Preview
@@ -350,6 +356,7 @@ AI-news-aggregator-KRJP/
 ├── deployment/
 │   ├── deploy_cloud.ps1               # Automated deployment script (APIs, GCS bucket, IAM, Cloud Run, Scheduler)
 │   └── sync_secrets.py                # One-shot utility to push local credentials to Secret Manager
+├── .dockerignore                     # Build context exclusion rules
 ├── .env.example                       # Cloud architecture environment template
 ├── .gcloudignore                      # Cloud Build ignore rules
 ├── .gitignore                         # Strict Git ignore rules ensuring zero credential/state pollution

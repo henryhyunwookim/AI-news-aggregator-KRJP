@@ -38,7 +38,10 @@ from typing import Any
 import feedparser
 import requests
 from bs4 import BeautifulSoup
-from googlenewsdecoder import gnewsdecoder
+try:
+    from googlenewsdecoder import gnewsdecoder
+except ImportError:
+    gnewsdecoder = None
 from rapidfuzz import fuzz
 
 from src.config import JAPANESE_QUERIES, KOREAN_QUERIES
@@ -94,10 +97,10 @@ def resolve_canonical_url(url: str | None) -> str:
     clean_url: str = clean_article_url(url)
     if "news.google.com" in clean_url:
         try:
-            # Decode Google News base64 CBMi protobuf redirects into the real destination
-            res = gnewsdecoder(clean_url, interval=0.1)
-            if res.get("status") and res.get("decoded_url"):
-                return str(res["decoded_url"])
+            if gnewsdecoder:
+                res = gnewsdecoder(clean_url, interval=0.1)
+                if res.get("status") and res.get("decoded_url"):
+                    return str(res["decoded_url"])
         except Exception:
             pass
     return clean_url

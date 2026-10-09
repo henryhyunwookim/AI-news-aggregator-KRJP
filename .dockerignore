@@ -1,0 +1,14 @@
+.git/
+.gitignore
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+tests/
+deployment/
+docs/
+README.md
+.env*
+credentials.json
+token.json
