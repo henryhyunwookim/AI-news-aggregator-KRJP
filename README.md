@@ -247,7 +247,7 @@ flowchart TD
 - **Secret Manager Single-Version Retention & Artifact Registry Cost Hygiene**:
   - *Decision*: Enforce automated version pruning in `src/config.py` and `deployment/sync_secrets.py` upon updating secrets, coupled with Artifact Registry cleanup policies.
   - *Context & Motivation*: Secret Manager charges for active versions exceeding the 6-version free tier. Repeated deployments or secret updates without lifecycle management cause dangling versions and unexpected billing creep.
-  - *Rationale & Alternatives Considered*: The application automatically destroys superseded enabled versions upon writing new ones, guaranteeing only the single latest version remains active within the free tier. Container repositories apply lifecycle policies keeping the 3 most recent builds and purging untagged digests older than 3 days. Non-sensitive recipient emails (`RECIPIENT_EMAIL`) are injected directly via Cloud Run environment variables to preserve free secret quotas.
+  - *Rationale & Alternatives Considered*: The application automatically destroys superseded enabled versions upon writing new ones, guaranteeing only the single latest version remains active within the free tier. Container repositories apply lifecycle policies keeping the 3 most recent builds and purging untagged digests older than 3 days. Non-sensitive recipient emails (`RECIPIENT_EMAIL`) are injected directly via Cloud Run environment variables, with resilient multi-tier fallback to the authenticated Gmail user profile (`users.getProfile(userId='me')`), preserving the project strictly within Secret Manager's 6-secret free tier quota.
 
 - **Resilient URL Decoding & Upstream Dependency Isolation**:
   - *Decision*: Pin `selectolax<1.0.0` in `requirements.txt` and wrap `googlenewsdecoder` imports defensively with fallback exception handling in `src/rss_parser.py`.
@@ -333,7 +333,7 @@ In this cloud-native architecture, environment variables can be provided via Goo
 | `GEMINI_STAGE2_MODEL` | Google Gemini model name for Stage 2 synthesis | `gemini-3.8-flash` | Configurable model identifier |
 | `STAGE1_CANDIDATES_PER_COUNTRY` | Candidates selected per country in Stage 1 | `10` | 10 KR + 10 JP = 20 total candidates |
 | `GEMINI_API_KEY` | Gemini API authentication key | Secret Manager | Secret `gemini-api-key` |
-| `RECIPIENT_EMAIL` | Target email address for daily digest | Secret Manager | Secret `ai-news-recipient-email` |
+| `RECIPIENT_EMAIL` | Target email address for daily digest | Authenticated Gmail / Env | Dynamic fallback: Env -> Secret -> Gmail profile |
 | `RECIPIENT_NAME` | Recipient name for digest personalization | `AIFOD Practitioner` | Local environment override |
 | `TIMEZONE` | Timezone for report dates and scheduling | `Asia/Tokyo` | Standard IANA timezone string |
 
@@ -442,7 +442,7 @@ Automated deployment to Google Cloud Platform is managed via the PowerShell depl
 ### What the Deployment Script Does:
 1. **API Enablement**: Enables `run.googleapis.com`, `cloudbuild.googleapis.com`, `artifactregistry.googleapis.com`, `cloudscheduler.googleapis.com`, `secretmanager.googleapis.com`, and `storage.googleapis.com`.
 2. **GCS Bucket Setup**: Automatically provisions `gs://<project-id>-ai-news-data` for state and log persistence.
-3. **Secret & IAM Permissions**: Ensures `ai-news-recipient-email` exists in Secret Manager if provided, and grants `roles/secretmanager.secretAccessor` and `roles/storage.objectUser` to the Cloud Run runtime service account.
+3. **IAM Permissions & Env Injection**: Injects `RECIPIENT_EMAIL` directly into Cloud Run environment variables (with multi-tier fallback to the authenticated Gmail profile), and grants `roles/secretmanager.secretAccessor` and `roles/storage.objectUser` to the Cloud Run runtime service account while preserving the Secret Manager 6-secret free-tier limit.
 4. **Container Build & Deploy**: Builds and deploys the container from source to Cloud Run as a private service with configured environment variables.
 5. **Scheduler Job**: Configures Cloud Scheduler recurring trigger (`0 0 * * *` in `Asia/Tokyo`, 300s attempt deadline) with OIDC authentication to invoke Cloud Run daily.
 

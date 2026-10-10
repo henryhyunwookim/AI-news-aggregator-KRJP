@@ -245,11 +245,34 @@ class EmailSender:
     # Email Delivery via Gmail API
     # =======================================================================
 
+    def get_recipient_email(self) -> str:
+        """
+        Resolves the recipient email address using a resilient multi-tier fallback:
+        1. RECIPIENT_EMAIL from src.config (env var, Secret Manager, or gcloud CLI)
+        2. Authenticated user's email profile via Gmail API users.getProfile(userId='me')
+        """
+        from src.config import RECIPIENT_EMAIL
+
+        if RECIPIENT_EMAIL and RECIPIENT_EMAIL.strip():
+            return RECIPIENT_EMAIL.strip()
+
+        try:
+            profile = self.service.users().getProfile(userId="me").execute()
+            user_email = profile.get("emailAddress", "").strip()
+            if user_email:
+                print(f"[Email] Resolved recipient email from authenticated Gmail profile: {user_email}")
+                return user_email
+        except Exception as exc:
+            print(f"[Email] Could not retrieve email address from Gmail profile: {exc}")
+
+        return ""
+
     def send_digest_email(
         self,
         relevant_articles: list[dict[str, Any]],
         total_fetched: int,
-        date_str: str
+        date_str: str,
+        recipient: str | None = None,
     ) -> dict[str, Any]:
         """
         Compiles the multipart MIME email and dispatches it via the Gmail REST API.
@@ -258,15 +281,17 @@ class EmailSender:
             relevant_articles: Synthesized articles to include.
             total_fetched: Total raw articles processed.
             date_str: Date string for subject and header.
+            recipient: Optional email recipient override.
 
         Returns:
             dict[str, Any]: Gmail API response object containing message ID.
 
         Raises:
-            ValueError: If RECIPIENT_EMAIL is not configured.
+            ValueError: If no recipient email could be resolved.
             HttpError: If Google Gmail API returns an HTTP error.
         """
-        if not RECIPIENT_EMAIL:
+        target_email = (recipient or self.get_recipient_email()).strip()
+        if not target_email:
             raise ValueError(
                 "Recipient email is required to send daily digest. "
                 "Please configure RECIPIENT_EMAIL in your .env file or environment variables."
@@ -278,7 +303,7 @@ class EmailSender:
             message = MIMEMultipart("alternative")
             status_tag: str = f"[{len(relevant_articles)} Articles]" if relevant_articles else "[No News]"
             message["Subject"] = f"{status_tag} Daily AI News Digest: Korea & Japan - {date_str}"
-            message["To"] = RECIPIENT_EMAIL
+            message["To"] = target_email
 
             # Plain text fallback for lightweight email clients
             plain_text: str = f"Daily AI News Digest: Korea & Japan - {date_str}\n\n"

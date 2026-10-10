@@ -90,8 +90,14 @@ $REGION = if ($Region) { $Region } elseif ($ENV_GCP_REGION) { $ENV_GCP_REGION } 
 $SERVICE_NAME = if ($ServiceName) { $ServiceName } elseif ($ENV_SERVICE_NAME) { $ENV_SERVICE_NAME } else { "ai-news-aggregator-krjp" }
 $JOB_NAME = if ($JobName) { $JobName } elseif ($ENV_JOB_NAME) { $ENV_JOB_NAME } else { "ai-news-aggregator-daily-trigger" }
 $SCHEDULE = if ($Schedule) { $Schedule } elseif ($ENV_SCHEDULE) { $ENV_SCHEDULE } else { "0 0 * * *" }
-$TIMEZONE = if ($TimeZone) { $TimeZone } elseif ($ENV_TIMEZONE) { $ENV_TIMEZONE } else { "Asia/Tokyo" }
-$RECIPIENT_EMAIL = if ($RecipientEmail) { $RecipientEmail } elseif ($ENV_RECIPIENT_EMAIL) { $ENV_RECIPIENT_EMAIL } else { $null }
+$RECIPIENT_EMAIL = if ($RecipientEmail) { 
+    $RecipientEmail 
+} elseif ($ENV_RECIPIENT_EMAIL) { 
+    $ENV_RECIPIENT_EMAIL 
+} else { 
+    $activeAccount = (gcloud config get-value account 2>$null)
+    if ($activeAccount -and $activeAccount -ne "(unset)") { $activeAccount.Trim() } else { $null }
+}
 
 if (-not $PROJECT_ID) {
     Write-Error "GCP_PROJECT_ID is not provided and was not found in .env. Please supply -ProjectId or configure .env."
@@ -143,20 +149,6 @@ $COMPUTE_SA = "$PROJECT_NUMBER-compute@developer.gserviceaccount.com"
 Write-Host "Granting Secret Manager Secret Accessor and Storage Object User to $COMPUTE_SA..." -ForegroundColor Cyan
 gcloud projects add-iam-policy-binding $PROJECT_ID --member="serviceAccount:$COMPUTE_SA" --role="roles/secretmanager.secretAccessor" --quiet
 gcloud projects add-iam-policy-binding $PROJECT_ID --member="serviceAccount:$COMPUTE_SA" --role="roles/storage.objectUser" --quiet
-
-# Ensure recipient email secret exists in Secret Manager if provided
-if ($RECIPIENT_EMAIL) {
-    Write-Host "Ensuring secret 'ai-news-recipient-email' exists in Secret Manager..." -ForegroundColor Cyan
-    $secretExists = gcloud secrets describe "ai-news-recipient-email" --project=$PROJECT_ID 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Creating secret 'ai-news-recipient-email' in project $PROJECT_ID..."
-        $RECIPIENT_EMAIL | gcloud secrets create "ai-news-recipient-email" --data-file=- --replication-policy=automatic --project=$PROJECT_ID
-    } else {
-        Write-Host "Updating secret 'ai-news-recipient-email' with latest value..."
-        $RECIPIENT_EMAIL | gcloud secrets versions add "ai-news-recipient-email" --data-file=- --project=$PROJECT_ID
-    }
-}
-
 # ===========================================================================
 # 4. Deploy Application to Cloud Run
 # ===========================================================================

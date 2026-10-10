@@ -233,14 +233,41 @@ GEMINI_API_KEY: str | None = (
 # Number of candidates selected per country in Stage 1 candidate filtering (default: 10 KR + 10 JP = 20 total)
 STAGE1_CANDIDATES_PER_COUNTRY: int = int(os.getenv("STAGE1_CANDIDATES_PER_COUNTRY", "10"))
 
-# ===========================================================================
-# 4. Email Delivery & OAuth Scopes
-# ===========================================================================
-RECIPIENT_EMAIL: str = (
-    os.getenv("RECIPIENT_EMAIL")
-    or resolve_cloud_secret(SECRET_RECIPIENT_EMAIL, GCP_PROJECT_ID)
-    or ""
-)
+def _get_default_recipient_email() -> str:
+    """
+    Resolves default recipient email using a multi-tier hierarchy:
+    1. Explicit environment variable RECIPIENT_EMAIL
+    2. GCP Secret Manager (SECRET_RECIPIENT_EMAIL)
+    3. Active gcloud authenticated account (local workstation fallback)
+    """
+    env_email = os.getenv("RECIPIENT_EMAIL")
+    if env_email and env_email.strip():
+        return env_email.strip()
+
+    sec_email = resolve_cloud_secret(SECRET_RECIPIENT_EMAIL, GCP_PROJECT_ID)
+    if sec_email and sec_email.strip():
+        return sec_email.strip()
+
+    try:
+        is_win = sys.platform == "win32"
+        res = subprocess.run(
+            ["gcloud", "config", "get-value", "account"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
+            shell=is_win,
+        )
+        val = res.stdout.strip()
+        if val and "@" in val and "(unset)" not in val:
+            return val
+    except Exception:
+        pass
+
+    return ""
+
+
+RECIPIENT_EMAIL: str = _get_default_recipient_email()
 RECIPIENT_NAME: str = os.getenv("RECIPIENT_NAME", "AIFOD Practitioner")
 
 # Gmail Scopes:

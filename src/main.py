@@ -132,7 +132,7 @@ def main(hours_back: int = 24, dry_run: bool = False) -> dict[str, Any]:
         if dry_run:
             print("[Step 4/4] [DRY-RUN] Compiling HTML digest template for verification (Email dispatch skipped)...")
             html_content = sender.build_html_digest(relevant_articles, stats["total_fetched"], date_str)
-            print(f"[Step 4/4] [DRY-RUN] HTML template compiled successfully ({len(html_content)} characters). Recipient: {RECIPIENT_EMAIL}")
+            print(f"[Step 4/4] [DRY-RUN] HTML template compiled successfully ({len(html_content)} characters). Recipient: {sender.get_recipient_email()}")
         else:
             print("[Step 4/4] Compiling HTML digest and dispatching via Gmail API...")
             sender.send_digest_email(relevant_articles, stats["total_fetched"], date_str)
